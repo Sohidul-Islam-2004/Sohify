@@ -3,3 +3,4 @@ hello*=2
 
 ha = 5
 let sohidul = "merge"
+let pushpush = "push"
