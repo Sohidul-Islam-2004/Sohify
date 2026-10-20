@@ -1,86 +1,113 @@
-# 🎵 SoundPulse · Web Audio Player
-
 <div align="center">
 
+# 🎵 SoundPulse · Sohify
+
+**A full-stack music streaming web app — auth, playlists, likes, custom uploads, and a slick audio player.**
+
+Built with Node.js · Express · MongoDB · Vanilla JS · IndexedDB
+
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![IndexedDB](https://img.shields.io/badge/IndexedDB-Storage-purple?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-**A sleek, responsive, client-side web music player built with vanilla HTML5, modern CSS, and JavaScript. Import local songs with custom artwork, manage playlists, scrub audio smoothly, and enjoy an animated visualizer—all persistent in your browser.**
-
-[Features](#-key-features) • [Installation](#-getting-started) • [Shortcuts](#-keyboard-shortcuts) • [Architecture](#-project-structure) • [License](#-license)
+[Features](#-features) • [Screenshots](#-screenshots) • [Tech Stack](#-tech-stack) • [Setup](#-getting-started) • [API](#-api-reference) • [Structure](#-project-structure) • [License](#-license)
 
 </div>
 
 ---
 
-## 📸 Preview
+## 📖 About
 
-```text
-+-------------------------------------------------------+
-|  SoundPulse       [ Search music... ]     (Profile)   |
-+-------------------+-----------------------------------+
-| Menu              |  FEATURED RELEASE                 |
-|  • Home           |  Midnight Neon Memories           |
-| Library           |  [ ▶ Listen ]  [ + Queue ]        |
-|  • Liked Songs    |                                   |
-|  • Local Files    |  RECENT TRACKS                    |
-| Playlists (+)     |  1. Starboy - The Weeknd     [❤]  |
-|  • Chill Lofi     |  2. Midnight City - M83      [❤]  |
-+-------------------+-----------------------------------+
-| 🎵 Starboy ılı·   [ 🔀  ⏮  ⏸  ⏭  🔁 ]   0:28 ━━⚪── 3:50 |
-+-------------------------------------------------------+
-```
+**SoundPulse (Sohify)** is a modern, full-stack music player that combines the seamless experience of a native music app with the power of the web. Users can sign up, log in, upload their own music with custom artwork, build playlists, like tracks, and enjoy a polished audio player with shuffle, repeat, seek, and queue controls.
 
-## ✨ Key Features
+All **user data** (accounts, likes, playlists, avatar, recent history) is stored securely in **MongoDB**, while **uploaded audio blobs** live client-side in **IndexedDB** — giving fast playback without server storage costs.
 
-- **📂 Local Audio & Image Import (`IndexedDB`)**
-  - Import your own audio tracks (`.mp3`, `.wav`, `.ogg`, `.m4a`, `.flac`) via file browser or drag-and-drop.
-  - Attach custom cover artwork (or take a photo) per track.
-  - Persistent storage across page reloads using browser-native **IndexedDB**.
+---
 
-- **📑 Smart Playlist Management**
-  - Create and delete custom playlists on the fly.
-  - Add any track (cloud or local) to any playlist with one click (`+`).
-  - **Sequential Playback**: Selecting a playlist automatically loads and plays every song in order from track 1.
+## ✨ Features
 
-- **🔍 Zoomed Artwork with In-Modal Music Status**
-  - Click on the currently playing song title or bottom album thumbnail to blow up the album artwork in full view.
-  - Includes an embedded music status bar (play/pause, skip, shuffle, repeat, scrub bar, time labels) and a quick minimize button (`Esc` or minimize icon).
+### 🔐 Authentication & Security
+- Email + password signup / login with **bcrypt** password hashing
+- **JWT-based sessions** (7-day expiry)
+- Per-user data isolation — every user sees only their own library
+- Protected routes via `Authorization: Bearer <token>` middleware
+- `isAdmin` flag ready for admin-only actions
 
-- **❤️ Favorites / Liked Songs**
-  - Instant heart toggle on any track, footer player, or mobile sheet.
-  - Filter and view only your favorite songs in the dedicated library tab, persisted in `localStorage`.
+### 🎧 Audio Player
+- Full-featured bottom player + mobile bottom-sheet
+- **Click / drag / wheel** seek and volume sliders
+- Play / Pause / Next / Previous
+- **Shuffle** and **Repeat (Off → All → One)** modes
+- **Animated equalizer** visualizer during playback
+- Enlarged album cover modal with embedded playback controls
 
-- **🎛️ Interactive Controls & Visualizer**
-  - Animated sound wave equalizer indicator that bounces dynamically during playback.
-  - Clickable and draggable seek bar and volume slider with mouse-wheel adjustments.
-  - Dedicated **Play Queue** drawer with real-time queueing and reordering.
+### 📂 Local Song Import
+- Upload `.mp3`, `.wav`, `.ogg`, `.m4a`, `.flac` via **file picker** or **drag & drop**
+- Attach **custom cover art** per track
+- Audio blob stored in **IndexedDB** → survives page refresh
+- Automatic duration detection + metadata synced to MongoDB
 
-- **👤 Custom User Profile Photo**
-  - Click your profile badge in the header to upload an avatar image, automatically saved in `localStorage`.
+### 📑 Playlists
+- Create, rename, and delete playlists
+- Add / remove any track (default, server, or local) with one click
+- Playlist **sequential playback** — starts at track 1 and auto-advances
+- Song counts displayed live in the sidebar
 
-- **📱 Fully Responsive Design**
-  - Desktop sidebar layout with dedicated controls.
-  - Mobile bottom-sheet now-playing drawer and sliding hamburger menu.
+### ❤️ Likes & Recents
+- One-tap heart toggle on any track, player, or mobile sheet
+- **Liked Songs** view filtered from your saved favorites
+- **Recent History** (last 20 tracks, persisted server-side)
+
+### 👤 Profile
+- Custom avatar upload (stored in MongoDB as data URL)
+- Display name shown in the header
+
+### 🎛️ Player Extras
+- **Play Queue** drawer — add tracks, reorder, play next
+- **Search** across title, artist, album
+- **Recommended cards** grid
+- **Keyboard shortcuts** for power users
+- Fully **responsive** (desktop sidebar ↔ mobile drawer)
 
 ---
 
 ## ⌨️ Keyboard Shortcuts
 
-| Key           | Action                                        |
-| :------------ | :-------------------------------------------- |
-| `Space`       | Play / Pause current track                    |
-| `Arrow Right` | Skip forward 5 seconds                        |
-| `Arrow Left`  | Rewind 5 seconds                              |
-| `Arrow Up`    | Increase volume by 5%                         |
-| `Arrow Down`  | Decrease volume by 5%                         |
-| `M`           | Toggle Mute / Unmute                          |
-| `S`           | Toggle Shuffle mode                           |
-| `R`           | Cycle Repeat mode (_Off_ → _All_ → _One_)     |
-| `Escape`      | Minimize zoomed artwork / Close active modals |
+| Key | Action |
+| :-- | :-- |
+| `Space` | Play / Pause |
+| `→` | Skip forward 5s |
+| `←` | Rewind 5s |
+| `↑` | Volume +5% |
+| `↓` | Volume −5% |
+| `M` | Mute / Unmute |
+| `S` | Toggle Shuffle |
+| `R` | Cycle Repeat (Off → All → One) |
+| `Esc` | Close modals / minimize artwork |
+
+---
+
+## 🧱 Tech Stack
+
+### Backend
+- **Node.js** + **Express** — HTTP server & routing
+- **MongoDB** + **Mongoose** — data persistence
+- **bcryptjs** — password hashing
+- **jsonwebtoken** — auth tokens
+- **dotenv** — environment config
+- **cors** — cross-origin support
+
+### Frontend
+- **Vanilla HTML5 / CSS3 / ES6+ JavaScript** — no framework overhead
+- **IndexedDB** — local audio blob storage
+- **Web Audio API** — playback control
+- **FontAwesome 6** — icons
+- **Google Fonts** (Inter, Space Grotesk) — typography
 
 ---
 
@@ -88,51 +115,12 @@
 
 ### Prerequisites
 
-No build tools, Node.js packages, or servers required. Everything runs natively in any modern web browser.
+- Node.js **18+**
+- MongoDB (local or [Atlas](https://www.mongodb.com/atlas) cluster)
+- A modern browser (Chrome, Firefox, Edge, Safari)
 
-### Installation
+### 1. Clone the repository
 
-Open the project:
-
-Double-click index.html to open it directly in your browser.
-
-Or run it using a local live server (e.g., VS Code Live Server extension or python -m http.server 8000).
-
-soundpulse-player/
-├── index.html # Primary application markup and modal architecture
-├── style.css # Responsive styling, design tokens, animations, and themes
-├── script.js # Audio engine, IndexedDB handler, and UI event listeners
-├── login.html # Authentication screen (optional integration)
-├── landing.html # Promotional landing page (optional integration)
-└── README.md # Project documentation
-
-🛠️ Built With
-HTML5 Semantic Markup & Web Audio API
-
-Modern CSS3 (CSS Variables, Flexbox, CSS Grid, Glassmorphism, Keyframe Animations)
-
-Vanilla JavaScript (ES6+)
-
-IndexedDB API (Blob storage for audio tracks and custom cover images)
-
-LocalStorage API (Playlists, likes, user profile avatar, volume preferences)
-
-FontAwesome 6 (Vector icons)
-
-Google Fonts (Inter & Plus Jakarta Sans)
-
-🤝 Contributing
-Contributions, feature suggestions, and bug reports are always welcome!
-
-Fork the Project (https://github.com/fazlerabbicodes/cse-347-ISAD-.git/fork)
-
-Create your Feature Branch (git checkout -b feature/AmazingFeature)
-
-Commit your Changes (git commit -m 'Add some AmazingFeature')
-
-Push to the Branch (git push origin feature/AmazingFeature)
-
-Open a Pull Request
-
-📄 License
-Distributed under the MIT License. See LICENSE for more information.
+```bash
+git clone https://github.com/fazlerabbicodes/cse-347-ISAD-.git
+cd cse-347-ISAD-

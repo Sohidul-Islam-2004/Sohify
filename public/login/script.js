@@ -1,21 +1,11 @@
-// ==========================================
-// 1. PASSWORD VISIBILITY TOGGLE
-// ==========================================
 function togglePasswordVisibility(inputId, btn) {
     const input = document.getElementById(inputId);
     const icon = btn.querySelector("i");
-    if (input.type === "password") {
-        input.type = "text";
-        icon.className = "fa-solid fa-eye-slash";
-    } else {
-        input.type = "password";
-        icon.className = "fa-solid fa-eye";
-    }
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    icon.className = isPassword ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
 }
 
-// ==========================================
-// 2. DOM ELEMENTS
-// ==========================================
 const loginForm = document.getElementById("loginForm");
 const emailInput = document.getElementById("email");
 const passwordInput = document.getElementById("password");
@@ -23,90 +13,79 @@ const rememberCheckbox = document.getElementById("remember");
 const emailError = document.getElementById("emailError");
 const passwordError = document.getElementById("passwordError");
 
-// Clear error messages on input change
-emailInput.addEventListener("input", () => {
-    emailError.textContent = "";
-});
+const API_BASE = "/api/users";
 
-passwordInput.addEventListener("input", () => {
-    passwordError.textContent = "";
-});
+emailInput.addEventListener("input", () => (emailError.textContent = ""));
+passwordInput.addEventListener("input", () => (passwordError.textContent = ""));
 
-function clearErrors() {
-    emailError.textContent = "";
-    passwordError.textContent = "";
+function showFieldError(field, message) {
+    if (field === "email") emailError.textContent = message;
+    else if (field === "password") passwordError.textContent = message;
+    else alert(message);
 }
 
-// ==========================================
-// 3. AUTO-FILL ON PAGE LOAD
-// ==========================================
 window.addEventListener("DOMContentLoaded", () => {
-    // 1. Pre-fill from fresh signup redirect
-    const signupEmail = sessionStorage.getItem("sohify_signup_email");
-    
-    // 2. Pre-fill from "Remember Me" localStorage persistence
+    const signupEmail = localStorage.getItem("sohify_signup_email");
     const rememberedEmail = localStorage.getItem("sohify_remember_email");
 
     if (signupEmail) {
         emailInput.value = signupEmail;
-        passwordInput.focus();
-        sessionStorage.removeItem("sohify_signup_email");
+        localStorage.removeItem("sohify_signup_email");
+        localStorage.removeItem("sohify_signup_name");
     } else if (rememberedEmail) {
         emailInput.value = rememberedEmail;
         rememberCheckbox.checked = true;
-        passwordInput.focus();
     }
+    passwordInput.focus();
 });
 
-// ==========================================
-// 4. AUTHENTICATE WITH LOCALSTORAGE
-// ==========================================
-loginForm.addEventListener("submit", function (e) {
+loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    clearErrors();
+    emailError.textContent = "";
+    passwordError.textContent = "";
 
     const email = emailInput.value.trim().toLowerCase();
     const password = passwordInput.value;
 
-    // --- Basic Input Checks ---
-    if (!email) {
-        emailError.textContent = "Please enter your email address.";
-        return;
+    if (!email) return (emailError.textContent = "Please enter your email address.");
+    if (!password) return (passwordError.textContent = "Please enter your password.");
+
+    const submitBtn = loginForm.querySelector("button[type='submit']");
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Logging in...";
+
+    try {
+        const res = await fetch(`${API_BASE}/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            showFieldError(data.field, data.message || "Login failed.");
+            return;
+        }
+
+       
+
+        if (rememberCheckbox.checked) localStorage.setItem("sohify_remember_email", email);
+        else localStorage.removeItem("sohify_remember_email");
+
+        localStorage.setItem("sohify_token", data.token);
+        localStorage.setItem("sohify_user", data.data.email);
+        localStorage.setItem("sohify_username", data.data.name || data.data.email.split("@")[0]);
+        localStorage.setItem("sohify_user_id", data.data.id);
+        localStorage.setItem("sohify_is_admin", String(!!data.data.isAdmin));
+
+        window.location.href = "/Dashboard";
+    } catch (err) {
+        console.error("Login error:", err);
+        alert("Network error. Please check your connection and try again.");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
-
-    if (!password) {
-        passwordError.textContent = "Please enter your password.";
-        return;
-    }
-
-    // --- Fetch Users Array from localStorage ---
-    const storedUsers = JSON.parse(localStorage.getItem("sohify_users")) || [];
-
-    // Find account by email
-    const user = storedUsers.find(u => u.email.toLowerCase() === email);
-
-    if (!user) {
-        emailError.textContent = "No account found with this email.";
-        return;
-    }
-
-    // Validate password
-    if (user.password !== password) {
-        passwordError.textContent = "Incorrect password. Please try again.";
-        return;
-    }
-
-    // --- Handle "Remember Me" ---
-    if (rememberCheckbox.checked) {
-        localStorage.setItem("sohify_remember_email", email);
-    } else {
-        localStorage.removeItem("sohify_remember_email");
-    }
-
-    // --- Set Active User Session ---
-    sessionStorage.setItem("sohify_user", user.email);
-    sessionStorage.setItem("sohify_username", user.fullName || user.email.split("@")[0]);
-
-    // Redirect to Web Player Dashboard
-    window.location.href = "..//dash-board";
 });

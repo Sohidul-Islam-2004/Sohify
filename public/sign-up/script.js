@@ -1,21 +1,11 @@
-// ==========================================
-// 1. PASSWORD VISIBILITY TOGGLE
-// ==========================================
 function togglePasswordVisibility(inputId, btn) {
     const input = document.getElementById(inputId);
     const icon = btn.querySelector("i");
-    if (input.type === "password") {
-        input.type = "text";
-        icon.className = "fa-solid fa-eye-slash";
-    } else {
-        input.type = "password";
-        icon.className = "fa-solid fa-eye";
-    }
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    icon.className = isPassword ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
 }
 
-// ==========================================
-// 2. DOM ELEMENTS
-// ==========================================
 const signupForm = document.getElementById("signupForm");
 const fullNameInput = document.getElementById("fullName");
 const emailInput = document.getElementById("email");
@@ -24,25 +14,23 @@ const confirmPasswordInput = document.getElementById("confirmPassword");
 const termsCheckbox = document.getElementById("terms");
 const strengthMeter = document.getElementById("strengthMeter");
 
-// Error display fields
 const nameError = document.getElementById("nameError");
 const emailError = document.getElementById("emailError");
 const passwordError = document.getElementById("passwordError");
 const confirmPasswordError = document.getElementById("confirmPasswordError");
 
-// ==========================================
-// 3. LIVE PASSWORD STRENGTH METER
-// ==========================================
+const API_BASE = "/api/users";
+const MIN_PASSWORD = 8;
+
 passwordInput.addEventListener("input", () => {
     const val = passwordInput.value;
     let score = 0;
-
-    if (val.length >= 6) score++;
+    if (val.length >= MIN_PASSWORD) score++;
     if (/[A-Z]/.test(val)) score++;
     if (/[0-9]/.test(val)) score++;
     if (/[^A-Za-z0-9]/.test(val)) score++;
 
-    const bars = strengthMeter.querySelectorAll("span");
+    const bars = strengthMeter?.querySelectorAll("span") || [];
     bars.forEach((bar, i) => {
         bar.classList.remove("weak", "medium", "strong");
         if (i < score) {
@@ -52,22 +40,15 @@ passwordInput.addEventListener("input", () => {
         }
     });
 
-    if (val.length >= 6) {
-        passwordError.textContent = "";
-    }
+    if (val.length >= MIN_PASSWORD) passwordError.textContent = "";
 });
 
-// Clear mismatch error on re-typing
 confirmPasswordInput.addEventListener("input", () => {
-    if (passwordInput.value === confirmPasswordInput.value) {
-        confirmPasswordError.textContent = "";
-    }
+    if (passwordInput.value === confirmPasswordInput.value) confirmPasswordError.textContent = "";
 });
 
-// Clear email duplicate error on input change
-emailInput.addEventListener("input", () => {
-    emailError.textContent = "";
-});
+emailInput.addEventListener("input", () => (emailError.textContent = ""));
+fullNameInput.addEventListener("input", () => (nameError.textContent = ""));
 
 function clearErrors() {
     nameError.textContent = "";
@@ -76,10 +57,19 @@ function clearErrors() {
     confirmPasswordError.textContent = "";
 }
 
-// ==========================================
-// 4. SIGNUP WITH LOCALSTORAGE
-// ==========================================
-signupForm.addEventListener("submit", function (e) {
+function showFieldError(field, message) {
+    const map = {
+        fullName: nameError,
+        name: nameError,
+        email: emailError,
+        password: passwordError,
+        confirmPassword: confirmPasswordError,
+    };
+    if (map[field]) map[field].textContent = message;
+    else alert(message);
+}
+
+signupForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     clearErrors();
 
@@ -88,58 +78,41 @@ signupForm.addEventListener("submit", function (e) {
     const password = passwordInput.value;
     const confirmPassword = confirmPasswordInput.value;
 
-    // --- Validation Rules ---
-    if (!fullName) {
-        nameError.textContent = "Please enter your full name.";
-        return;
+    if (!fullName) return (nameError.textContent = "Please enter your full name.");
+    if (!email) return (emailError.textContent = "Please enter an email address.");
+    if (password.length < MIN_PASSWORD)
+        return (passwordError.textContent = `Password must be at least ${MIN_PASSWORD} characters.`);
+    if (password !== confirmPassword)
+        return (confirmPasswordError.textContent = "Passwords do not match.");
+    if (!termsCheckbox.checked) return alert("Please accept the Terms & Conditions to proceed.");
+
+    const submitBtn = signupForm.querySelector("button[type='submit']");
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating account...";
+
+    try {
+        const res = await fetch(`${API_BASE}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fullName, email, password, confirmPassword }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            showFieldError(data.field, data.message || "Signup failed.");
+            return;
+        }
+
+        localStorage.setItem("sohify_signup_email", email);
+        localStorage.setItem("sohify_signup_name", fullName);
+        window.location.href = "/Login";
+    } catch (err) {
+        console.error("Signup error:", err);
+        alert("Network error. Please check your connection and try again.");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
-
-    if (!email) {
-        emailError.textContent = "Please enter an email address.";
-        return;
-    }
-
-    if (password.length < 6) {
-        passwordError.textContent = "Password must be at least 6 characters.";
-        return;
-    }
-
-    if (password !== confirmPassword) {
-        confirmPasswordError.textContent = "Passwords do not match.";
-        return;
-    }
-
-    if (!termsCheckbox.checked) {
-        alert("Please accept the Terms & Conditions to proceed.");
-        return;
-    }
-
-    // --- Retrieve Existing Users from localStorage ---
-    const storedUsers = JSON.parse(localStorage.getItem("sohify_users")) || [];
-
-    // Check if user already exists
-    const userExists = storedUsers.some(user => user.email === email);
-    if (userExists) {
-        emailError.textContent = "An account with this email already exists.";
-        return;
-    }
-
-    // --- Save New User in localStorage ---
-    const newUser = {
-        id: Date.now(),
-        fullName: fullName,
-        email: email,
-        password: password, // Note: In production, never store raw passwords client-side
-        registeredAt: new Date().toISOString()
-    };
-
-    storedUsers.push(newUser);
-    localStorage.setItem("sohify_users", JSON.stringify(storedUsers));
-
-    // Store signup info in sessionStorage for login pre-fill and dashboard display
-    sessionStorage.setItem("sohify_signup_email", email);
-    sessionStorage.setItem("sohify_signup_name", fullName);
-
-    // Redirect to login page
-    window.location.href = "../login";
 });
