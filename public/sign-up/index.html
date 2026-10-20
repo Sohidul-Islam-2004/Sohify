@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign Up – SoundPulse · Sohify</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- FIXED: Links login.css, not style.css -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <!-- ANIMATED EQUALIZER BACKGROUND -->
+    <div class="equalizer-bg" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- AMBIENT ORBS -->
+    <div class="bg-orbs" aria-hidden="true">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- FLOATING MUSIC NOTES -->
+    <div class="music-notes" aria-hidden="true">
+        <i class="fa-solid fa-music note note-1"></i>
+        <i class="fa-solid fa-headphones note note-2"></i>
+        <i class="fa-solid fa-compact-disc note note-3"></i>
+        <i class="fa-solid fa-record-vinyl note note-4"></i>
+        <i class="fa-solid fa-microphone note note-5"></i>
+        <i class="fa-solid fa-sliders note note-6"></i>
+    </div>
+
+    <!-- SIGN UP LAYOUT -->
+    <div class="auth-layout">
+        <aside class="auth-visual">
+            <div class="vinyl-stage">
+                <div class="vinyl">
+                    <div class="vinyl-label"><i class="fa-solid fa-compact-disc"></i></div>
+                </div>
+
+                <div class="now-playing-card">
+                    <div class="np-art">
+                        <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format&fit=crop" alt="Album">
+                        <div class="np-pulse"></div>
+                    </div>
+                    <div class="np-info">
+                        <span class="np-label">NOW PLAYING</span>
+                        <strong>Midnight Neon Memories</strong>
+                        <span class="np-artist">SoundPulse Originals</span>
+                    </div>
+                    <div class="np-eq"><span></span><span></span><span></span><span></span></div>
+                </div>
+
+                <div class="feature-pills">
+                    <span class="pill"><i class="fa-solid fa-infinity"></i> Unlimited</span>
+                    <span class="pill"><i class="fa-solid fa-wifi"></i> Offline</span>
+                    <span class="pill"><i class="fa-solid fa-volume-high"></i> Hi-Fi</span>
+                </div>
+            </div>
+
+            <div class="visual-caption">
+                <h3>Stream. Discover. Repeat.</h3>
+                <p>Join 100M+ listeners sharing the beat.</p>
+            </div>
+        </aside>
+
+        <main class="auth-panel">
+            <div class="auth-container">
+                <a href="landing.html" class="brand-mark">
+                    <span class="brand-icon"><i class="fa-solid fa-compact-disc"></i></span>
+                    <span class="brand-name">Sohify</span>
+                </a>
+
+                <div class="music-badge">
+                    <i class="fa-solid fa-wave-square"></i>
+                    <span>New here? Let's tune you in.</span>
+                </div>
+
+                <h2>Create Account</h2>
+                <p class="subtitle">Start streaming millions of tracks — free forever.</p>
+
+                <form id="signupForm">
+                    <div class="input-group">
+                        <label for="fullName">Full Name</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-user"></i>
+                            <input type="text" id="fullName" name="fullName" placeholder="Full name" autocomplete="name" required />
+                        </div>
+                        <span class="error-message" id="nameError"></span>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="email">Email Address</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-envelope"></i>
+                            <input type="email" id="email" name="email" placeholder="name@example.com" autocomplete="email" required />
+                        </div>
+                        <span class="error-message" id="emailError"></span>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="password">Password</label>
+                        <div class="password-wrapper">
+                            <i class="fa-solid fa-lock input-icon-left"></i>
+                            <input type="password" id="password" name="password" placeholder="Create a strong password" autocomplete="new-password" required />
+                            <button type="button" class="toggle-btn" onclick="togglePasswordVisibility('password', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="strength-meter" id="strengthMeter">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                        <span class="error-message" id="passwordError"></span>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <div class="password-wrapper">
+                            <i class="fa-solid fa-lock input-icon-left"></i>
+                            <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Re-enter your password" autocomplete="new-password" required />
+                            <button type="button" class="toggle-btn" onclick="togglePasswordVisibility('confirmPassword', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <span class="error-message" id="confirmPasswordError"></span>
+                    </div>
+
+                    <div class="form-actions">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="terms" required /> I agree to the
+                            <a href="#" class="accent-link">Terms &amp; Conditions</a>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        <i class="fa-solid fa-circle-play"></i>
+                        <span>Create Account</span>
+                    </button>
+                </form>
+
+                <div class="divider"><span>or tune in with</span></div>
+
+                <div class="social-buttons">
+                    <button type="button" class="social-btn" aria-label="Google"><i class="fa-brands fa-google"></i></button>
+                    <button type="button" class="social-btn" aria-label="Apple"><i class="fa-brands fa-apple"></i></button>
+                    <button type="button" class="social-btn" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></button>
+                </div>
+
+                <p class="switch-prompt">
+                    Already have an account? <a href="login.html">Sign in</a>
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
