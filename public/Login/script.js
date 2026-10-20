@@ -34,7 +34,7 @@ window.addEventListener("DOMContentLoaded", () => {
         localStorage.removeItem("sohify_signup_name");
     } else if (rememberedEmail) {
         emailInput.value = rememberedEmail;
-        rememberCheckbox.checked = true;
+        if (rememberCheckbox) rememberCheckbox.checked = true;
     }
     passwordInput.focus();
 });
@@ -64,22 +64,39 @@ loginForm.addEventListener("submit", async (e) => {
 
         const data = await res.json();
 
-        if (!res.ok) {
+        if (!res.ok || !data.success) {
             showFieldError(data.field, data.message || "Login failed.");
             return;
         }
 
-       
+        const user = data.data;
 
-        if (rememberCheckbox.checked) localStorage.setItem("sohify_remember_email", email);
-        else localStorage.removeItem("sohify_remember_email");
+        if (rememberCheckbox && rememberCheckbox.checked) {
+            localStorage.setItem("sohify_remember_email", email);
+        } else {
+            localStorage.removeItem("sohify_remember_email");
+        }
 
-        localStorage.setItem("sohify_token", data.token);
-        localStorage.setItem("sohify_user", data.data.email);
-        localStorage.setItem("sohify_username", data.data.name || data.data.email.split("@")[0]);
-        localStorage.setItem("sohify_user_id", data.data.id);
-        localStorage.setItem("sohify_is_admin", String(!!data.data.isAdmin));
+        // Save to BOTH localStorage and sessionStorage for full dashboard compatibility
+        const username = user.name || user.email.split("@")[0];
+        const isAdminStr = String(Boolean(user.isAdmin));
+        const token = data.token || "session_token";
 
+        // 1. LocalStorage
+        localStorage.setItem("sohify_token", token);
+        localStorage.setItem("sohify_user", user.email);
+        localStorage.setItem("sohify_username", username);
+        localStorage.setItem("sohify_user_id", user.id);
+        localStorage.setItem("sohify_is_admin", isAdminStr);
+
+        // 2. SessionStorage
+        sessionStorage.setItem("sohify_token", token);
+        sessionStorage.setItem("sohify_user", user.email);
+        sessionStorage.setItem("sohify_username", username);
+        sessionStorage.setItem("sohify_user_id", user.id);
+        sessionStorage.setItem("sohify_is_admin", isAdminStr);
+
+        // Redirect to your Dashboard route
         window.location.href = "/Dashboard";
     } catch (err) {
         console.error("Login error:", err);

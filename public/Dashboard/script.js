@@ -1,12 +1,29 @@
 // ==========================================================================
-// 1. INDEXEDDB LOCAL AUDIO STORAGE (Permanent local songs across refreshes)
+// 1. CONFIGURATION: SUPABASE & BACKEND API
+// ==========================================================================
+// Insert your Supabase Project credentials (from Supabase Dashboard -> Project Settings -> API)
+const SUPABASE_URL = "https://your-project-id.supabase.co";
+const SUPABASE_ANON_KEY = "your-anon-key";
+
+// Initialize Supabase Client for Admin Cloud Storage
+const supabaseClient = (window.supabase && SUPABASE_URL !== "https://your-project-id.supabase.co")
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+// Backend API Base URL (Matches your server on port 5000)
+const API_BASE_URL = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1")
+    ? "http://localhost:5000/api"
+    : "/api";
+
+// ==========================================================================
+// 2. INDEXEDDB LOCAL AUDIO STORAGE (Private to this device/user)
 // ==========================================================================
 const DB_NAME = "SoundPulse_DB";
 const STORE_NAME = "local_songs";
 
 function getDB() {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
+        const req = indexedDB.open(DB_NAME, 2);
         req.onupgradeneeded = (e) => {
             const db = e.target.result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -24,6 +41,7 @@ async function saveSongToIndexedDB(trackObj, blob) {
         const tx = db.transaction(STORE_NAME, "readwrite");
         tx.objectStore(STORE_NAME).put({
             id: trackObj.id,
+            userId: trackObj.userId || "guest",
             title: trackObj.title,
             artist: trackObj.artist,
             album: trackObj.album,
@@ -37,13 +55,18 @@ async function saveSongToIndexedDB(trackObj, blob) {
     }
 }
 
-async function loadSongsFromIndexedDB() {
+async function loadSongsFromIndexedDB(currentUserId = "guest") {
     try {
         const db = await getDB();
         return new Promise((resolve) => {
             const tx = db.transaction(STORE_NAME, "readonly");
             const req = tx.objectStore(STORE_NAME).getAll();
-            req.onsuccess = () => resolve(req.result || []);
+            req.onsuccess = () => {
+                const all = req.result || [];
+                // Only return tracks owned by this user/device
+                const userTracks = all.filter(item => !item.userId || item.userId === currentUserId || item.userId === "guest");
+                resolve(userTracks);
+            };
             req.onerror = () => resolve([]);
         });
     } catch {
@@ -52,7 +75,7 @@ async function loadSongsFromIndexedDB() {
 }
 
 // ==========================================================================
-// 2. MAIN APPLICATION LOGIC
+// 3. MAIN DASHBOARD APPLICATION
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", async () => {
 
@@ -72,75 +95,128 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 2800);
     }
 
-    // --- B. Authentication & User Profile Image Option ---------------------
+    // --- B. Authentication & User Profile Sync (Reads server values) -------
     const displayUserName = document.getElementById("displayUserName");
-    const authBtn = document.getElementById("authBtn");
-    const authBtnText = document.getElementById("authBtnText");
-    const userProfileBtn = document.getElementById("userProfileBtn");
     const userAvatar = document.getElementById("userAvatar");
+    const authBtn = document.getElementById("authBtn");
+    const userProfileBtn = document.getElementById("userProfileBtn");
+    const userInfoCard = document.getElementById("userInfoCard");
+
+    const cardUserName = document.getElementById("cardUserName");
+    const cardUserEmail = document.getElementById("cardUserEmail");
+    const cardUserRole = document.getElementById("cardUserRole");
+    const cardAvatarImg = document.getElementById("cardAvatarImg");
+    const cardAvatarUploadBtn = document.getElementById("cardAvatarUploadBtn");
+    const cardLogoutBtn = document.getElementById("cardLogoutBtn");
     const userAvatarInput = document.getElementById("userAvatarInput");
+    const headerUploadBtn = document.getElementById("headerUploadBtn");
 
-    const currentUser = sessionStorage.getItem("sohify_user");
-    const currentName = sessionStorage.getItem("sohify_username");
+    // Read stored credentials saved by login.js (checks localStorage first, fallback sessionStorage)
+    const currentUserEmail = localStorage.getItem("sohify_user") || sessionStorage.getItem("sohify_user");
+    const currentUserName = localStorage.getItem("sohify_username") || sessionStorage.getItem("sohify_username");
+    const currentUserId = localStorage.getItem("sohify_user_id") || sessionStorage.getItem("sohify_user_id") || "guest";
 
-    if (currentUser && currentName) {
-        if (displayUserName) displayUserName.textContent = currentName;
-        if (authBtn && authBtnText) {
-            authBtnText.textContent = "Log Out";
-            authBtn.querySelector("i").className = "fa-solid fa-right-from-bracket";
-            authBtn.href = "#";
-            authBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                sessionStorage.removeItem("sohify_user");
-                sessionStorage.removeItem("sohify_username");
-                showToast("Logged out successfully");
-                setTimeout(() => window.location.href = "login.html", 800);
-            });
-        }
+    // Check isAdmin boolean value from MongoDB login response
+    const isAdmin = (localStorage.getItem("sohify_is_admin") === "true") || (sessionStorage.getItem("sohify_is_admin") === "true");
+
+    // RESTRICTION: "Upload Audio" is ONLY visible for verified Admin
+    if (currentUserEmail && isAdmin) {
+        if (headerUploadBtn) headerUploadBtn.style.display = "inline-flex";
     } else {
-        if (displayUserName) displayUserName.textContent = "Alex Rivera";
+        if (headerUploadBtn) headerUploadBtn.style.display = "none";
     }
 
-    // Load persisted User Avatar from localStorage
-    const savedUserAvatar = localStorage.getItem("soundpulse_user_avatar");
-    if (savedUserAvatar && userAvatar) {
-        userAvatar.src = savedUserAvatar;
+    // Load saved avatar
+    const savedUserAvatar = localStorage.getItem("soundpulse_user_avatar") || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop";
+
+    // Update Header & Popover with server data
+    if (currentUserEmail && currentUserName) {
+        if (displayUserName) displayUserName.textContent = currentUserName;
+        if (cardUserName) cardUserName.textContent = currentUserName;
+        if (cardUserEmail) cardUserEmail.textContent = currentUserEmail;
+        if (cardUserRole) {
+            cardUserRole.textContent = isAdmin ? "Admin" : "Regular Listener";
+            cardUserRole.className = `role-badge ${isAdmin ? 'admin' : 'listener'}`;
+        }
+        if (authBtn) authBtn.style.display = "none";
+    } else {
+        if (displayUserName) displayUserName.textContent = "Guest Listener";
+        if (cardUserName) cardUserName.textContent = "Guest Listener";
+        if (cardUserEmail) cardUserEmail.textContent = "Not signed in";
+        if (cardUserRole) cardUserRole.textContent = "Guest";
+        if (cardLogoutBtn) cardLogoutBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> <span>Log In</span>`;
     }
 
-    // Trigger user profile picture file chooser
-    userProfileBtn?.addEventListener("click", () => {
-        userAvatarInput?.click();
+    if (userAvatar) userAvatar.src = savedUserAvatar;
+    if (cardAvatarImg) cardAvatarImg.src = savedUserAvatar;
+
+    // Toggle User Info Card when clicking user profile
+    userProfileBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        userProfileBtn.classList.toggle("active");
+        userInfoCard?.classList.toggle("open");
+        updateUserCardStats();
     });
+
+    document.addEventListener("click", (e) => {
+        if (userInfoCard && userInfoCard.classList.contains("open")) {
+            if (!userInfoCard.contains(e.target) && !userProfileBtn.contains(e.target)) {
+                userInfoCard.classList.remove("open");
+                userProfileBtn?.classList.remove("active");
+            }
+        }
+    });
+
+    // Profile photo upload option
+    cardAvatarUploadBtn?.addEventListener("click", () => userAvatarInput?.click());
 
     userAvatarInput?.addEventListener("change", (e) => {
         const file = e.target.files && e.target.files[0];
-        if (!file) return;
-
-        if (!file.type.startsWith("image/")) {
-            showToast("Please choose a valid image file", "fa-triangle-exclamation");
-            return;
-        }
+        if (!file || !file.type.startsWith("image/")) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const dataUrl = event.target.result;
             if (userAvatar) userAvatar.src = dataUrl;
+            if (cardAvatarImg) cardAvatarImg.src = dataUrl;
             localStorage.setItem("soundpulse_user_avatar", dataUrl);
             showToast("Profile picture updated!", "fa-camera");
         };
         reader.readAsDataURL(file);
     });
 
+    // Logout Button (Located under user info card)
+    cardLogoutBtn?.addEventListener("click", () => {
+        localStorage.removeItem("sohify_user");
+        localStorage.removeItem("sohify_username");
+        localStorage.removeItem("sohify_user_id");
+        localStorage.removeItem("sohify_is_admin");
+        localStorage.removeItem("sohify_token");
+
+        sessionStorage.clear();
+        showToast("Logged out successfully");
+        setTimeout(() => window.location.href = "/home", 500);
+    });
+
+    function updateUserCardStats() {
+        const likedCount = TRACKS.filter(t => t.liked).length;
+        const localCount = TRACKS.filter(t => t.isLocal).length;
+        const plCount = playlists.length;
+        document.getElementById("cardStatLiked") && (document.getElementById("cardStatLiked").textContent = likedCount);
+        document.getElementById("cardStatLocal") && (document.getElementById("cardStatLocal").textContent = localCount);
+        document.getElementById("cardStatPlaylists") && (document.getElementById("cardStatPlaylists").textContent = plCount);
+    }
+
     // --- C. Favorite / Liked Songs LocalStorage ----------------------------
     function getStoredLikedIds() {
         try {
-            return JSON.parse(localStorage.getItem("soundpulse_likes")) || [1];
+            return JSON.parse(localStorage.getItem(`soundpulse_likes_${currentUserId}`)) || [1];
         } catch {
             return [1];
         }
     }
     function saveStoredLikedIds(ids) {
-        localStorage.setItem("soundpulse_likes", JSON.stringify(ids));
+        localStorage.setItem(`soundpulse_likes_${currentUserId}`, JSON.stringify(ids));
     }
 
     // --- D. Custom Playlists LocalStorage ----------------------------------
@@ -152,7 +228,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function getStoredPlaylists() {
         try {
-            const data = localStorage.getItem("soundpulse_playlists");
+            const data = localStorage.getItem(`soundpulse_playlists_${currentUserId}`);
             return data ? JSON.parse(data) : DEFAULT_PLAYLISTS;
         } catch {
             return DEFAULT_PLAYLISTS;
@@ -160,15 +236,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function saveStoredPlaylists(pls) {
-        localStorage.setItem("soundpulse_playlists", JSON.stringify(pls));
+        localStorage.setItem(`soundpulse_playlists_${currentUserId}`, JSON.stringify(pls));
     }
 
     let playlists = getStoredPlaylists();
 
-    // --- E. Initial Tracks Database ----------------------------------------
+    // --- E. Initial Tracks & MongoDB Cloud Catalog Fetch -------------------
     const DEFAULT_COVER = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop";
 
-    const TRACKS = [
+    let TRACKS = [
         {
             id: 1,
             title: "Starboy",
@@ -215,18 +291,44 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     ];
 
-    // Restore Liked status
-    const likedIds = getStoredLikedIds();
-    TRACKS.forEach(t => {
-        t.liked = likedIds.includes(t.id);
-    });
+    // Fetch songs uploaded to MongoDB backend
+    async function fetchOnlineSongsFromMongoDB() {
+        try {
+            const res = await fetch(`${API_BASE_URL}/songs`);
+            if (res.ok) {
+                const onlineSongs = await res.json();
+                if (Array.isArray(onlineSongs) && onlineSongs.length > 0) {
+                    const formatted = onlineSongs.map(s => ({
+                        id: s._id || s.id,
+                        title: s.title,
+                        artist: s.artist,
+                        album: s.album || "Cloud Catalog",
+                        duration: s.duration || "3:30",
+                        cover: s.coverUrl || DEFAULT_COVER,
+                        src: s.audioUrl,
+                        liked: false,
+                        isLocal: false
+                    }));
+                    TRACKS = [...formatted, ...TRACKS];
+                }
+            }
+        } catch (err) {
+            console.log("MongoDB API running locally/offline:", err.message);
+        }
+    }
 
-    // Load saved local songs from IndexedDB
-    const storedLocalSongs = await loadSongsFromIndexedDB();
+    await fetchOnlineSongsFromMongoDB();
+
+    const likedIds = getStoredLikedIds();
+    TRACKS.forEach(t => { t.liked = likedIds.includes(t.id); });
+
+    // Load Local User Songs from IndexedDB (Strictly private to this user/device)
+    const storedLocalSongs = await loadSongsFromIndexedDB(currentUserId);
     storedLocalSongs.forEach(saved => {
         const objectUrl = URL.createObjectURL(saved.blob);
         TRACKS.push({
             id: saved.id,
+            userId: saved.userId,
             title: saved.title,
             artist: saved.artist,
             album: saved.album || "Local Storage",
@@ -265,7 +367,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     ];
 
-    // --- F. Player State & Audio Element -----------------------------------
+    // --- F. Audio Player State & References --------------------------------
     const audio = document.getElementById("audioElement");
 
     const state = {
@@ -279,10 +381,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         activeFilter: "all",
         activePlaylistId: null,
         queue: [],
-        recentPlayed: []
+        recentPlayed: [],
+        isCloudUploadMode: false
     };
 
-    // --- G. DOM References -------------------------------------------------
     const currentCover = document.getElementById("currentCover");
     const currentTitle = document.getElementById("currentTitle");
     const currentArtist = document.getElementById("currentArtist");
@@ -339,7 +441,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const clearQueueBtn = document.getElementById("clearQueueBtn");
     const queueList = document.getElementById("queueList");
 
-    const headerUploadBtn = document.getElementById("headerUploadBtn");
     const sidebarUploadBtn = document.getElementById("sidebarUploadBtn");
     const dropOverlay = document.getElementById("dropOverlay");
 
@@ -361,8 +462,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const expandedProgressSlider = document.getElementById("expandedProgressSlider");
     const expandedProgressFill = document.getElementById("expandedProgressFill");
 
-    // Upload with Image Modal Elements
+    // Upload Modal Elements
     const uploadSongModal = document.getElementById("uploadSongModal");
+    const uploadModalTitle = document.getElementById("uploadModalTitle");
+    const confirmUploadBtnText = document.getElementById("confirmUploadBtnText");
     const closeUploadModalBtn = document.getElementById("closeUploadModalBtn");
     const cancelUploadBtn = document.getElementById("cancelUploadBtn");
     const confirmUploadBtn = document.getElementById("confirmUploadBtn");
@@ -378,8 +481,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const uploadSongTitle = document.getElementById("uploadSongTitle");
     const uploadSongArtist = document.getElementById("uploadSongArtist");
+    const uploadSongAlbum = document.getElementById("uploadSongAlbum");
 
     let currentSelectedAudioFile = null;
+    let currentSelectedCoverFile = null;
     let currentSelectedCoverData = DEFAULT_COVER;
 
     // Create & Add Playlist Modal Elements
@@ -397,7 +502,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let songTargetForPlaylist = null;
 
-    // --- H. Utility: Format Seconds ----------------------------------------
+    // --- G. Utility: Format Seconds to MM:SS --------------------------------
     function formatTime(sec) {
         if (isNaN(sec) || !isFinite(sec)) return "0:00";
         const m = Math.floor(sec / 60);
@@ -405,7 +510,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return `${m}:${s < 10 ? "0" : ""}${s}`;
     }
 
-    // --- I. Equalizer Wave & Play/Pause State -------------------------------
+    // --- H. Sound Wave Animation & Icon Sync --------------------------------
     function updateSoundWaveState() {
         const isAnim = state.isPlaying;
         [soundWave, sheetSoundWave].forEach(sw => {
@@ -420,6 +525,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                 icon.className = state.isPlaying ? "fa-solid fa-pause" : "fa-solid fa-play";
             }
         });
+
+        // Toggle Big Playlist Play Button icon
+        const plBigPlayBtn = document.getElementById("plBigPlayBtn");
+        if (plBigPlayBtn) {
+            const icon = plBigPlayBtn.querySelector("i");
+            // Check if audio is playing and currently in playlist view
+            const isPlayingThisPl = state.isPlaying && state.activeFilter === "playlist";
+            if (icon) {
+                icon.className = isPlayingThisPl ? "fa-solid fa-pause" : "fa-solid fa-play";
+            }
+        }
+
         updateSoundWaveState();
     }
 
@@ -428,9 +545,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const localCount = TRACKS.filter(t => t.isLocal).length;
         if (likedCountBadge) likedCountBadge.textContent = likedCount;
         if (localCountBadge) localCountBadge.textContent = localCount;
+        updateUserCardStats();
     }
 
-    // --- J. Enlarged Cover Art Open & Minimize Logic -----------------------
+    // --- I. Enlarged Artwork & Status Controls Logic -----------------------
     function openEnlargedCover() {
         const current = TRACKS[state.currentTrackIndex];
         if (!current || !coverExpandedModal) return;
@@ -458,26 +576,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         coverExpandedModal?.classList.remove("active");
     }
 
-    currentTitle?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openEnlargedCover();
-    });
-
-    currentCover?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openEnlargedCover();
-    });
-
+    currentTitle?.addEventListener("click", (e) => { e.stopPropagation(); openEnlargedCover(); });
+    currentCover?.addEventListener("click", (e) => { e.stopPropagation(); openEnlargedCover(); });
     coverMinimizeBtn?.addEventListener("click", closeEnlargedCover);
     expandedCloseBtn?.addEventListener("click", closeEnlargedCover);
     coverModalBackdrop?.addEventListener("click", closeEnlargedCover);
 
-    // --- K. Active Context Tracks (Playlist, Liked, Local, etc.) ------------
+    // --- J. Context Tracks -------------------------------------------------
     function getContextTracks() {
         if (state.activeFilter === "playlist" && state.activePlaylistId) {
             const pl = playlists.find(p => p.id === state.activePlaylistId);
             if (pl && pl.trackIds) {
-                return pl.trackIds.map(tid => TRACKS.find(t => t.id === tid)).filter(Boolean);
+                return pl.trackIds.map(tid => TRACKS.find(t => String(t.id) === String(tid))).filter(Boolean);
             }
         }
         if (state.activeFilter === "liked") {
@@ -487,12 +597,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             return TRACKS.filter(t => t.isLocal);
         }
         if (state.activeFilter === "recent") {
-            return state.recentPlayed.map(id => TRACKS.find(t => t.id === id)).filter(Boolean);
+            return state.recentPlayed.map(id => TRACKS.find(t => String(t.id) === String(id))).filter(Boolean);
         }
         return TRACKS;
     }
 
-    // --- L. Render Playlists & SELECT PLAYLIST IN ORDER ---------------------
+    // --- K. Playlist Ordering & Operations ---------------------------------
     function renderSidebarPlaylists() {
         if (!playlistNavList) return;
         playlistNavList.innerHTML = playlists.map(pl => {
@@ -516,9 +626,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             a.addEventListener("click", (e) => {
                 e.preventDefault();
                 const li = a.closest(".nav-item");
-                const plId = li.dataset.playlistId;
-                // Selecting playlist plays all its songs in order
-                selectPlaylist(plId, true);
+                selectPlaylist(li.dataset.playlistId, true);
                 closeDrawer();
             });
         });
@@ -526,13 +634,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         playlistNavList.querySelectorAll(".btn-delete-playlist").forEach(btn => {
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
-                const plId = btn.dataset.playlistId;
-                deletePlaylist(plId);
+                deletePlaylist(btn.dataset.playlistId);
             });
         });
     }
 
-    // SELECT PLAYLIST FUNCTION: Plays all tracks in order starting from track 1
     function selectPlaylist(plId, autoPlayInOrder = true) {
         const pl = playlists.find(p => p.id === plId);
         if (!pl) return;
@@ -540,32 +646,90 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.activeFilter = "playlist";
         state.activePlaylistId = pl.id;
 
-        if (tracklistHeading) tracklistHeading.textContent = pl.name;
-        if (viewFilterPill) {
-            viewFilterPill.style.display = "inline-block";
-            viewFilterPill.textContent = "Playlist";
-        }
-        if (deleteCurrentPlaylistBtn) {
-            deleteCurrentPlaylistBtn.style.display = "inline-flex";
+        // 1. Hide Home Hero & Recommended Grid
+        const heroBanner = document.getElementById("heroBanner");
+        const recommendedSection = document.getElementById("recommendedSection");
+        if (heroBanner) heroBanner.style.display = "none";
+        if (recommendedSection) recommendedSection.style.display = "none";
+
+        // 2. Show & Populate Spotify-Style Playlist Banner
+        const plBanner = document.getElementById("playlistDetailBanner");
+        const plActionBar = document.getElementById("playlistActionBar");
+        if (plBanner) plBanner.style.display = "flex";
+        if (plActionBar) plActionBar.style.display = "flex";
+
+        const plTracks = (pl.trackIds || []).map(tid => TRACKS.find(t => String(t.id) === String(tid))).filter(Boolean);
+
+        // Compute total duration
+        let totalSeconds = 0;
+        plTracks.forEach(t => {
+            if (t.duration && t.duration.includes(":")) {
+                const parts = t.duration.split(":");
+                totalSeconds += (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+            }
+        });
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+
+        document.getElementById("plDetailTitle") && (document.getElementById("plDetailTitle").textContent = pl.name);
+        document.getElementById("plMetaSongCount") && (document.getElementById("plMetaSongCount").textContent = `${plTracks.length} song${plTracks.length === 1 ? '' : 's'}`);
+        document.getElementById("plMetaDuration") && (document.getElementById("plMetaDuration").textContent = `${mins} min ${secs} sec`);
+        
+        const plCoverImg = document.getElementById("plDetailCover");
+        if (plCoverImg) {
+            plCoverImg.src = plTracks.length > 0 ? plTracks[0].cover : DEFAULT_COVER;
         }
 
+        const userName = localStorage.getItem("sohify_username") || "Listener";
+        const userAvatarSrc = localStorage.getItem("soundpulse_user_avatar") || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop";
+        document.getElementById("plCreatorName") && (document.getElementById("plCreatorName").textContent = userName);
+        document.getElementById("plCreatorAvatar") && (document.getElementById("plCreatorAvatar").src = userAvatarSrc);
+
+        // Big Play Button Handler (reads fresh trackIds so newly-added songs play)
+        const plBigPlayBtn = document.getElementById("plBigPlayBtn");
+        if (plBigPlayBtn) {
+            plBigPlayBtn.onclick = () => {
+                const isPlayingThisPl = state.isPlaying && state.activePlaylistId === pl.id;
+                if (isPlayingThisPl) {
+                    togglePlayPause();
+                } else {
+                    const currentPlTracks = (pl.trackIds || [])
+                        .map(tid => TRACKS.find(t => String(t.id) === String(tid)))
+                        .filter(Boolean);
+                    if (currentPlTracks.length > 0) {
+                        const firstGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(currentPlTracks[0].id));
+                        if (firstGlobalIdx !== -1) loadTrack(firstGlobalIdx, true);
+                    }
+                }
+            };
+        }
+
+        const plActionDeleteBtn = document.getElementById("plActionDeleteBtn");
+        if (plActionDeleteBtn) {
+            plActionDeleteBtn.onclick = () => deletePlaylist(pl.id);
+        }
+
+        const plActionShuffleBtn = document.getElementById("plActionShuffleBtn");
+        if (plActionShuffleBtn) {
+            plActionShuffleBtn.onclick = () => {
+                state.isShuffle = true;
+                toggleShuffle();
+                playRandomTrack();
+            };
+        }
+
+        // 3. Highlight Sidebar Active Item
         document.querySelectorAll(".sidebar .nav-item").forEach(i => i.classList.remove("active"));
         const activeLi = playlistNavList.querySelector(`.nav-item[data-playlist-id="${pl.id}"]`);
         if (activeLi) activeLi.classList.add("active");
 
         renderTrackList();
 
-        // Play the playlist tracks in sequential order starting from the very first track
-        if (autoPlayInOrder) {
-            const plTracks = (pl.trackIds || []).map(tid => TRACKS.find(t => t.id === tid)).filter(Boolean);
-            if (plTracks.length > 0) {
-                const firstTrackGlobalIdx = TRACKS.findIndex(t => t.id === plTracks[0].id);
-                if (firstTrackGlobalIdx !== -1) {
-                    loadTrack(firstTrackGlobalIdx, true);
-                    showToast(`Playing playlist "${pl.name}" in order (${plTracks.length} tracks)`, "fa-play");
-                }
-            } else {
-                showToast(`"${pl.name}" is empty. Add songs to play!`, "fa-info");
+        if (autoPlayInOrder && plTracks.length > 0) {
+            const firstTrackGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(plTracks[0].id));
+            if (firstTrackGlobalIdx !== -1) {
+                loadTrack(firstTrackGlobalIdx, true);
+                showToast(`Playing playlist "${pl.name}" in order`, "fa-play");
             }
         }
     }
@@ -591,11 +755,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const newId = "pl_" + Date.now();
-        const newPl = {
-            id: newId,
-            name: name,
-            trackIds: []
-        };
+        const newPl = { id: newId, name: name, trackIds: [] };
 
         playlists.push(newPl);
         saveStoredPlaylists(playlists);
@@ -608,10 +768,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     function deletePlaylist(plId) {
         const pl = playlists.find(p => p.id === plId);
         if (!pl) return;
-
-        if (!confirm(`Are you sure you want to delete the playlist "${pl.name}"?`)) {
-            return;
-        }
+        if (!confirm(`Are you sure you want to delete the playlist "${pl.name}"?`)) return;
 
         playlists = playlists.filter(p => p.id !== plId);
         saveStoredPlaylists(playlists);
@@ -627,37 +784,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     closeCreateModalBtn?.addEventListener("click", closeCreatePlaylistModal);
     cancelCreatePlaylistBtn?.addEventListener("click", closeCreatePlaylistModal);
     confirmCreatePlaylistBtn?.addEventListener("click", createNewPlaylist);
-    newPlaylistName?.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") createNewPlaylist();
-    });
-
+    newPlaylistName?.addEventListener("keydown", (e) => { if (e.key === "Enter") createNewPlaylist(); });
     deleteCurrentPlaylistBtn?.addEventListener("click", () => {
         if (state.activePlaylistId) deletePlaylist(state.activePlaylistId);
     });
 
-    // --- M. Add Song to Playlist Modal ------------------------------------
     function openAddToPlaylistModal(trackId) {
-        const id = isNaN(trackId) ? trackId : Number(trackId);
-        const track = TRACKS.find(t => t.id === id);
+        const track = TRACKS.find(t => String(t.id) === String(trackId));
         if (!track || !addToPlaylistModal) return;
 
         songTargetForPlaylist = track;
-        if (addToPlaylistSongTitle) {
-            addToPlaylistSongTitle.textContent = `Add "${track.title}" to:`;
-        }
+        if (addToPlaylistSongTitle) addToPlaylistSongTitle.textContent = `Add "${track.title}" to:`;
 
         if (playlists.length === 0) {
-            modalPlaylistOptions.innerHTML = `
-                <p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 12px;">No playlists found. Create one first!</p>
-            `;
+            modalPlaylistOptions.innerHTML = `<p style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 12px;">No playlists found. Create one first!</p>`;
         } else {
             modalPlaylistOptions.innerHTML = playlists.map(pl => {
                 const alreadyIn = pl.trackIds && pl.trackIds.includes(track.id);
                 return `
                     <div class="modal-pl-option" data-pl-id="${pl.id}">
                         <span class="modal-pl-option-name">
-                            <i class="fa-solid fa-music" style="color: var(--accent-green);"></i>
-                            ${pl.name}
+                            <i class="fa-solid fa-music" style="color: var(--accent-green);"></i> ${pl.name}
                         </span>
                         <span class="modal-pl-option-count">
                             ${alreadyIn ? '<span style="color: var(--accent-green);"><i class="fa-solid fa-check"></i> Added</span>' : '+ Add'}
@@ -668,19 +815,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             modalPlaylistOptions.querySelectorAll(".modal-pl-option").forEach(opt => {
                 opt.addEventListener("click", () => {
-                    const plId = opt.dataset.plId;
-                    toggleTrackInPlaylist(plId, songTargetForPlaylist.id);
+                    toggleTrackInPlaylist(opt.dataset.plId, songTargetForPlaylist.id);
                 });
             });
         }
-
         addToPlaylistModal.classList.add("active");
     }
 
     function toggleTrackInPlaylist(plId, trackId) {
         const pl = playlists.find(p => p.id === plId);
         if (!pl) return;
-
         if (!pl.trackIds) pl.trackIds = [];
 
         if (pl.trackIds.includes(trackId)) {
@@ -702,36 +846,180 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     closeAddModalBtn?.addEventListener("click", () => addToPlaylistModal?.classList.remove("active"));
 
-    // --- N. Upload Song with Cover Image Workflow --------------------------
-    function openUploadModal(preloadedAudioFile = null) {
+    // --- PLAYLIST ADD SONGS MODAL LOGIC (Both Online & Local) ---
+    const selectSongsModal = document.getElementById("selectSongsModal");
+    const plActionAddSongsBtn = document.getElementById("plActionAddSongsBtn");
+    const closeSelectSongsModalBtn = document.getElementById("closeSelectSongsModalBtn");
+    const doneSelectSongsBtn = document.getElementById("doneSelectSongsBtn");
+    const searchSongsForPlInput = document.getElementById("searchSongsForPlInput");
+    const selectSongsList = document.getElementById("selectSongsList");
+    const selectSongsModalPlName = document.getElementById("selectSongsModalPlName");
+
+    function renderSelectSongsList(filterQuery = "") {
+        if (!selectSongsList || !state.activePlaylistId) return;
+
+        const pl = playlists.find(p => p.id === state.activePlaylistId);
+        if (!pl) return;
+
+        if (!pl.trackIds) pl.trackIds = [];
+
+        const q = filterQuery.trim().toLowerCase();
+
+        // Include both online tracks and local tracks
+        const availableTracks = TRACKS.filter(t => {
+            if (!q) return true;
+            const titleMatch = t.title.toLowerCase().includes(q);
+            const artistMatch = t.artist.toLowerCase().includes(q);
+            const typeMatch = t.isLocal ? "local".includes(q) : "cloud online server".includes(q);
+            return titleMatch || artistMatch || typeMatch;
+        });
+
+        if (availableTracks.length === 0) {
+            selectSongsList.innerHTML = `<p style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">No songs found matching "${filterQuery}".</p>`;
+            return;
+        }
+
+        selectSongsList.innerHTML = availableTracks.map(t => {
+            const isAdded = pl.trackIds.some(id => String(id) === String(t.id));
+            return `
+                <div class="select-song-item" data-track-id="${t.id}">
+                    <img src="${t.cover}" class="select-song-thumb" alt="${t.title}">
+                    <div class="select-song-meta">
+                        <div class="select-song-title">${t.title}</div>
+                        <div class="select-song-subtitle">
+                            <span>${t.artist}</span>
+                            <span class="song-source-badge ${t.isLocal ? 'local' : 'cloud'}">
+                                ${t.isLocal ? '<i class="fa-solid fa-folder-open"></i> Local' : '<i class="fa-solid fa-cloud"></i> Server'}
+                            </span>
+                            <span>• ${t.duration || '--:--'}</span>
+                        </div>
+                    </div>
+                    <button class="btn-toggle-pl-song ${isAdded ? 'added' : ''}" data-track-id="${t.id}">
+                        ${isAdded ? '<i class="fa-solid fa-check"></i> Added' : '<i class="fa-solid fa-plus"></i> Add'}
+                    </button>
+                </div>
+            `;
+        }).join("");
+
+        // Attach click listener for toggling each song in/out of the playlist
+        selectSongsList.querySelectorAll(".btn-toggle-pl-song").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const trackIdStr = String(btn.dataset.trackId);
+                const track = TRACKS.find(t => String(t.id) === trackIdStr);
+                const isCurrentlyAdded = pl.trackIds.some(id => String(id) === trackIdStr);
+
+                if (isCurrentlyAdded) {
+                    // Remove song
+                    pl.trackIds = pl.trackIds.filter(id => String(id) !== trackIdStr);
+                    btn.classList.remove("added");
+                    btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
+                    showToast(`Removed "${track?.title}" from playlist`, "fa-circle-minus");
+                } else {
+                    // Add song
+                    if (track) pl.trackIds.push(track.id);
+                    btn.classList.add("added");
+                    btn.innerHTML = `<i class="fa-solid fa-check"></i> Added`;
+                    showToast(`Added "${track?.title}" to playlist`, "fa-circle-check");
+                }
+
+                // Persist playlist updates
+                saveStoredPlaylists(playlists);
+                renderSidebarPlaylists();
+                renderTrackList();
+
+                // Recalculate duration & song counts in playlist header
+                const updatedTracks = pl.trackIds
+                    .map(id => TRACKS.find(t => String(t.id) === String(id)))
+                    .filter(Boolean);
+                let totalSecs = 0;
+                updatedTracks.forEach(t => {
+                    // Only accept valid "m:ss" style durations (ignores "--:--")
+                    if (t.duration && /^\d+:\d+$/.test(t.duration)) {
+                        const parts = t.duration.split(":");
+                        totalSecs += (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+                    }
+                });
+                const mins = Math.floor(totalSecs / 60);
+                const secs = totalSecs % 60;
+
+                const countEl = document.getElementById("plMetaSongCount");
+                const durEl = document.getElementById("plMetaDuration");
+                if (countEl) countEl.textContent = `${updatedTracks.length} song${updatedTracks.length === 1 ? '' : 's'}`;
+                if (durEl) durEl.textContent = `${mins} min ${secs} sec`;
+            });
+        });
+    }
+
+    // Open Modal
+    plActionAddSongsBtn?.addEventListener("click", () => {
+        if (!state.activePlaylistId) return;
+        const pl = playlists.find(p => p.id === state.activePlaylistId);
+        if (!pl) return;
+
+        if (selectSongsModalPlName) selectSongsModalPlName.textContent = pl.name;
+        if (searchSongsForPlInput) searchSongsForPlInput.value = "";
+
+        renderSelectSongsList("");
+        selectSongsModal?.classList.add("active");
+    });
+
+    // Close Modal (X, Done, backdrop)
+    closeSelectSongsModalBtn?.addEventListener("click", () => selectSongsModal?.classList.remove("active"));
+    doneSelectSongsBtn?.addEventListener("click", () => selectSongsModal?.classList.remove("active"));
+    selectSongsModal?.addEventListener("click", (e) => {
+        if (e.target === selectSongsModal) selectSongsModal.classList.remove("active");
+    });
+
+    // Filter songs on typing
+    searchSongsForPlInput?.addEventListener("input", (e) => {
+        renderSelectSongsList(e.target.value);
+    });
+
+    // --- L. Upload Workflow: Admin Cloud vs. User Local -------------------
+    function openUploadModal(isCloud = false, preloadedAudioFile = null) {
         if (!uploadSongModal) return;
+        state.isCloudUploadMode = isCloud;
+
+        if (isCloud) {
+            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Admin Cloud Upload (Supabase + MongoDB)`;
+            if (confirmUploadBtnText) confirmUploadBtnText.textContent = "Upload to Cloud Catalog";
+        } else {
+            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Local Song (Private to You)`;
+            if (confirmUploadBtnText) confirmUploadBtnText.textContent = "Save Locally & Play";
+        }
+
         uploadSongModal.classList.add("active");
 
         currentSelectedAudioFile = null;
+        currentSelectedCoverFile = null;
         currentSelectedCoverData = DEFAULT_COVER;
         if (uploadCoverPreview) uploadCoverPreview.src = DEFAULT_COVER;
         if (audioFileNameDisplay) audioFileNameDisplay.textContent = "No file chosen";
         if (uploadSongTitle) uploadSongTitle.value = "";
         if (uploadSongArtist) uploadSongArtist.value = "";
+        if (uploadSongAlbum) uploadSongAlbum.value = "";
         if (songAudioInput) songAudioInput.value = "";
         if (songCoverInput) songCoverInput.value = "";
 
-        if (preloadedAudioFile) {
-            handleSelectedAudio(preloadedAudioFile);
-        }
+        if (preloadedAudioFile) handleSelectedAudio(preloadedAudioFile);
     }
 
     function closeUploadModal() {
         uploadSongModal?.classList.remove("active");
     }
 
-    [headerUploadBtn, sidebarUploadBtn].forEach(b => {
-        b?.addEventListener("click", () => openUploadModal());
+    sidebarUploadBtn?.addEventListener("click", () => openUploadModal(false));
+
+    headerUploadBtn?.addEventListener("click", () => {
+        if (!isAdmin) {
+            showToast("Upload feature is restricted to Admins", "fa-lock");
+            return;
+        }
+        openUploadModal(true);
     });
 
     closeUploadModalBtn?.addEventListener("click", closeUploadModal);
     cancelUploadBtn?.addEventListener("click", closeUploadModal);
-
     chooseAudioBtn?.addEventListener("click", () => songAudioInput?.click());
 
     function handleSelectedAudio(file) {
@@ -754,9 +1042,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     songAudioInput?.addEventListener("change", (e) => {
-        if (e.target.files && e.target.files[0]) {
-            handleSelectedAudio(e.target.files[0]);
-        }
+        if (e.target.files && e.target.files[0]) handleSelectedAudio(e.target.files[0]);
     });
 
     [coverPreviewBox, chooseCoverBtn].forEach(el => {
@@ -765,13 +1051,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     songCoverInput?.addEventListener("change", (e) => {
         const file = e.target.files && e.target.files[0];
-        if (!file) return;
-
-        if (!file.type.startsWith("image/")) {
-            showToast("Please choose a valid image file", "fa-triangle-exclamation");
-            return;
-        }
-
+        if (!file || !file.type.startsWith("image/")) return;
+        currentSelectedCoverFile = file;
         const reader = new FileReader();
         reader.onload = (event) => {
             currentSelectedCoverData = event.target.result;
@@ -788,53 +1069,160 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const title = (uploadSongTitle?.value || "").trim() || currentSelectedAudioFile.name.replace(/\.[^/.]+$/, "");
-        const artist = (uploadSongArtist?.value || "").trim() || "Local Artist";
-        const trackId = "local_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-        const objectUrl = URL.createObjectURL(currentSelectedAudioFile);
+        const artist = (uploadSongArtist?.value || "").trim() || (state.isCloudUploadMode ? "SoundPulse Artist" : "Local Artist");
+        const album = (uploadSongAlbum?.value || "").trim() || (state.isCloudUploadMode ? "Cloud Single" : "Local Storage");
 
-        const newTrack = {
-            id: trackId,
-            title: title,
-            artist: artist,
-            album: "Local Storage",
-            duration: "--:--",
-            cover: currentSelectedCoverData || DEFAULT_COVER,
-            src: objectUrl,
-            liked: false,
-            isLocal: true
-        };
+        confirmUploadBtn.disabled = true;
+        confirmUploadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
 
-        TRACKS.unshift(newTrack);
-        await saveSongToIndexedDB(newTrack, currentSelectedAudioFile);
+        try {
+            // ADMIN CLOUD UPLOAD -> SUPABASE + MONGODB
+            if (state.isCloudUploadMode) {
+                if (!supabaseClient) {
+                    throw new Error("Supabase is not configured. Please set your SUPABASE_URL and SUPABASE_ANON_KEY in script.js");
+                }
 
-        const probeAudio = new Audio();
-        probeAudio.src = objectUrl;
-        probeAudio.addEventListener("loadedmetadata", () => {
-            newTrack.duration = formatTime(probeAudio.duration);
-            renderTrackList();
-        });
+                showToast("Uploading audio to Supabase...", "fa-cloud-arrow-up");
 
-        closeUploadModal();
-        showToast(`Uploaded "${title}" with custom cover!`, "fa-cloud-arrow-up");
+                const timeStamp = Date.now();
+                const audioExt = currentSelectedAudioFile.name.split('.').pop();
+                const audioFilePath = `songs/${timeStamp}_${title.replace(/\s+/g, '_')}.${audioExt}`;
 
-        setActiveFilter("local", "Local Files");
-        loadTrack(0, true);
+                const { error: audioErr } = await supabaseClient.storage
+                    .from("songs")
+                    .upload(audioFilePath, currentSelectedAudioFile, { cacheControl: "3600", upsert: true });
+
+                if (audioErr) throw new Error("Supabase Audio Upload Error: " + audioErr.message);
+
+                const { data: audioUrlData } = supabaseClient.storage.from("songs").getPublicUrl(audioFilePath);
+                const publicAudioUrl = audioUrlData.publicUrl;
+
+                let publicCoverUrl = DEFAULT_COVER;
+                if (currentSelectedCoverFile) {
+                    const coverExt = currentSelectedCoverFile.name.split('.').pop();
+                    const coverFilePath = `covers/${timeStamp}_${title.replace(/\s+/g, '_')}.${coverExt}`;
+
+                    const { error: coverErr } = await supabaseClient.storage
+                        .from("covers")
+                        .upload(coverFilePath, currentSelectedCoverFile, { cacheControl: "3600", upsert: true });
+
+                    if (!coverErr) {
+                        const { data: coverUrlData } = supabaseClient.storage.from("covers").getPublicUrl(coverFilePath);
+                        publicCoverUrl = coverUrlData.publicUrl;
+                    }
+                }
+
+                showToast("Saving song metadata to MongoDB...", "fa-database");
+                const mongoPayload = {
+                    title: title,
+                    artist: artist,
+                    album: album,
+                    duration: "3:40",
+                    audioUrl: publicAudioUrl,
+                    coverUrl: publicCoverUrl,
+                    userId: currentUserId
+                };
+
+                let savedMongoSong = null;
+                try {
+                    const res = await fetch(`${API_BASE_URL}/songs`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(mongoPayload)
+                    });
+                    if (res.ok) savedMongoSong = await res.json();
+                } catch (apiErr) {
+                    console.warn("MongoDB API offline; added directly to active session:", apiErr);
+                }
+
+                const newCloudTrack = {
+                    id: (savedMongoSong && savedMongoSong._id) ? savedMongoSong._id : "cloud_" + Date.now(),
+                    title: title,
+                    artist: artist,
+                    album: album,
+                    duration: "3:40",
+                    cover: publicCoverUrl,
+                    src: publicAudioUrl,
+                    liked: false,
+                    isLocal: false
+                };
+
+                TRACKS.unshift(newCloudTrack);
+                showToast(`Cloud song "${title}" published globally!`, "fa-cloud-check");
+                renderTrackList();
+                loadTrack(0, true);
+
+            // REGULAR USER LOCAL IMPORT -> INDEXEDDB (Private to user)
+            } else {
+                const trackId = "local_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+                const objectUrl = URL.createObjectURL(currentSelectedAudioFile);
+
+                const newLocalTrack = {
+                    id: trackId,
+                    userId: currentUserId,
+                    title: title,
+                    artist: artist,
+                    album: album,
+                    duration: "--:--",
+                    cover: currentSelectedCoverData || DEFAULT_COVER,
+                    src: objectUrl,
+                    liked: false,
+                    isLocal: true
+                };
+
+                TRACKS.unshift(newLocalTrack);
+                await saveSongToIndexedDB(newLocalTrack, currentSelectedAudioFile);
+
+                const probeAudio = new Audio();
+                probeAudio.src = objectUrl;
+                probeAudio.addEventListener("loadedmetadata", () => {
+                    newLocalTrack.duration = formatTime(probeAudio.duration);
+                    renderTrackList();
+                });
+
+                showToast(`Saved "${title}" to your private local files!`, "fa-floppy-disk");
+                setActiveFilter("local", "Local Files");
+                loadTrack(0, true);
+            }
+
+            closeUploadModal();
+        } catch (error) {
+            console.error(error);
+            showToast(error.message || "Upload failed", "fa-triangle-exclamation");
+        } finally {
+            confirmUploadBtn.disabled = false;
+            confirmUploadBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">${state.isCloudUploadMode ? 'Upload to Cloud Catalog' : 'Save Locally & Play'}</span>`;
+        }
     });
 
+    // Drag-and-drop file listeners
     window.addEventListener("dragover", (e) => {
         e.preventDefault();
-        dropOverlay?.classList.add("active");
+        if (dropOverlay) {
+            dropOverlay.style.display = "flex";
+            dropOverlay.classList.add("active");
+        }
     });
+
     window.addEventListener("dragleave", (e) => {
-        if (e.relatedTarget === null) dropOverlay?.classList.remove("active");
+        if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+            if (dropOverlay) {
+                dropOverlay.classList.remove("active");
+                dropOverlay.style.display = "none";
+            }
+        }
     });
+
     window.addEventListener("drop", (e) => {
         e.preventDefault();
-        dropOverlay?.classList.remove("active");
+        if (dropOverlay) {
+            dropOverlay.classList.remove("active");
+            dropOverlay.style.display = "none";
+        }
         if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
             const file = e.dataTransfer.files[0];
             if (file.type.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|flac)$/i.test(file.name)) {
-                openUploadModal(file);
+                openUploadModal(false, file);
             } else {
                 showToast("Please drop an audio file (MP3, WAV, etc.)", "fa-triangle-exclamation");
             }
@@ -847,18 +1235,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
-    // --- O. Add to Queue Helper Function -----------------------------------
+    // --- M. Queue Helper ---------------------------------------------------
     function addTrackToQueue(trackId) {
-        const id = isNaN(trackId) ? trackId : Number(trackId);
-        const track = TRACKS.find(t => t.id === id);
+        const track = TRACKS.find(t => String(t.id) === String(trackId));
         if (!track) return;
-
         state.queue.push(track.id);
         renderQueue();
         showToast(`Added "${track.title}" to Queue`, "fa-list-check");
     }
 
-    // --- P. Track Filtering & Rendering -----------------------------------
+    // --- N. Track Filtering & Rendering -----------------------------------
     function getFilteredTracks() {
         const q = (document.getElementById("searchInput")?.value || "").trim().toLowerCase();
         let list = [...TRACKS];
@@ -866,13 +1252,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (state.activeFilter === "liked") {
             list = list.filter(t => t.liked);
         } else if (state.activeFilter === "local") {
-            list = list.filter(t => t.isLocal);
+            list = list.filter(t => t.isLocal && (!t.userId || t.userId === currentUserId || t.userId === "guest"));
         } else if (state.activeFilter === "recent") {
-            list = state.recentPlayed.length ? state.recentPlayed.map(id => TRACKS.find(t => t.id === id)).filter(Boolean) : list;
+            list = state.recentPlayed.length ? state.recentPlayed.map(id => TRACKS.find(t => String(t.id) === String(id))).filter(Boolean) : list;
         } else if (state.activeFilter === "playlist") {
             const currentPl = playlists.find(p => p.id === state.activePlaylistId);
             if (currentPl && currentPl.trackIds) {
-                list = currentPl.trackIds.map(tid => TRACKS.find(t => t.id === tid)).filter(Boolean);
+                list = currentPl.trackIds.map(tid => TRACKS.find(t => String(t.id) === String(tid))).filter(Boolean);
             } else {
                 list = [];
             }
@@ -898,7 +1284,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (state.activeFilter === "liked") {
                 emptyMsg = "You haven't liked any songs yet! Click the heart icon on any track to add it here.";
             } else if (state.activeFilter === "local") {
-                emptyMsg = "No local songs imported yet! Click 'Import Local Song' to upload a song with its cover art.";
+                emptyMsg = "No local songs imported yet! Click 'Import Local Song' to store songs privately on this device.";
             } else if (state.activeFilter === "playlist") {
                 emptyMsg = "This playlist is empty. Add songs by clicking the '+' icon next to any song in the list!";
             }
@@ -909,23 +1295,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <h3>${state.activeFilter === 'liked' ? 'No Liked Songs Yet' : 'No Tracks Here'}</h3>
                     <p>${emptyMsg}</p>
                     <button class="btn btn-green" id="emptyActionBtn">
-                        ${state.activeFilter === 'local' ? '<i class="fa-solid fa-cloud-arrow-up"></i> Upload Song & Cover' : '<i class="fa-solid fa-house"></i> Back to Home'}
+                        ${state.activeFilter === 'local' ? '<i class="fa-solid fa-cloud-arrow-up"></i> Import Local Song' : '<i class="fa-solid fa-house"></i> Back to Home'}
                     </button>
                 </div>
             `;
 
             document.getElementById("emptyActionBtn")?.addEventListener("click", () => {
-                if (state.activeFilter === "local") {
-                    openUploadModal();
-                } else {
-                    setActiveFilter("all", "Recently Played");
-                }
+                if (state.activeFilter === "local") openUploadModal(false);
+                else setActiveFilter("all", "Recently Played");
             });
             return;
         }
 
         trackList.innerHTML = filtered.map((t) => {
-            const realIndex = TRACKS.findIndex(item => item.id === t.id);
+            const realIndex = TRACKS.findIndex(item => String(item.id) === String(t.id));
             const isPlayingThis = (realIndex === state.currentTrackIndex);
             return `
                 <div class="track-row ${isPlayingThis ? 'playing' : ''}" data-track-id="${t.id}" data-index="${realIndex}">
@@ -933,7 +1316,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <img src="${t.cover}" alt="${t.title}" class="track-cover">
                     <div class="track-info">
                         <span class="track-title">${t.title}</span>
-                        <span class="track-artist">${t.artist}</span>
+                        <span class="track-artist">${t.artist} ${t.isLocal ? '<span style="font-size: 10px; color: var(--accent-green);">(Local)</span>' : ''}</span>
                     </div>
                     <span class="track-album-name">${t.album}</span>
                     <span class="track-duration">${t.duration}</span>
@@ -980,10 +1363,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // --- Q. Favorite Toggle & Sync -----------------------------------------
+    // --- O. Favorite Toggle & Sync -----------------------------------------
     function toggleFavorite(trackId) {
-        const id = isNaN(trackId) ? trackId : Number(trackId);
-        const track = TRACKS.find(t => t.id === id);
+        const track = TRACKS.find(t => String(t.id) === String(trackId));
         if (!track) return;
 
         track.liked = !track.liked;
@@ -993,7 +1375,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!storedLikes.includes(track.id)) storedLikes.push(track.id);
             showToast(`Added "${track.title}" to Favorites`, "fa-heart");
         } else {
-            storedLikes = storedLikes.filter(item => item !== track.id);
+            storedLikes = storedLikes.filter(item => String(item) !== String(track.id));
             showToast(`Removed "${track.title}" from Favorites`, "fa-heart-crack");
         }
         saveStoredLikedIds(storedLikes);
@@ -1010,9 +1392,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!btn) return;
             btn.classList.toggle("liked", isLiked);
             const icon = btn.querySelector("i");
-            if (icon) {
-                icon.className = isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart";
-            }
+            if (icon) icon.className = isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart";
         });
     }
 
@@ -1026,7 +1406,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (curr) toggleFavorite(curr.id);
     });
 
-    // --- R. Load & Play Audio Track ----------------------------------------
+    // --- P. Audio Load & Play ----------------------------------------------
     function loadTrack(index, autoPlay = true) {
         if (index < 0 || index >= TRACKS.length) return;
         state.currentTrackIndex = index;
@@ -1060,9 +1440,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             audio.play().then(() => {
                 state.isPlaying = true;
                 updatePlayPauseIcons();
-            }).catch(err => {
-                console.warn("Autoplay notice:", err);
-            });
+            }).catch(err => console.warn("Autoplay notice:", err));
         }
     }
 
@@ -1090,7 +1468,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
-    // --- S. Audio Playback Event Listeners ---------------------------------
+    // --- Q. Audio Playback Event Listeners ---------------------------------
     audio.addEventListener("play", () => {
         state.isPlaying = true;
         updatePlayPauseIcons();
@@ -1128,7 +1506,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (expandedCurrentTime) expandedCurrentTime.textContent = cur;
     });
 
-    // SEQUENTIAL PLAYBACK: When a track ends, play the next track of the playlist in order
+    // Sequential Playlist Playback
     audio.addEventListener("ended", () => {
         handleTrackEnd();
     });
@@ -1140,10 +1518,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
-        // Play from queue if user added items explicitly
         if (state.queue.length > 0) {
             const nextId = state.queue.shift();
-            const qIdx = TRACKS.findIndex(t => t.id === nextId);
+            const qIdx = TRACKS.findIndex(t => String(t.id) === String(nextId));
             if (qIdx !== -1) {
                 loadTrack(qIdx, true);
                 renderQueue();
@@ -1151,7 +1528,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         }
 
-        // Get the active playlist / context songs
         const contextTracks = getContextTracks();
         if (contextTracks.length === 0) {
             state.isPlaying = false;
@@ -1164,21 +1540,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
-        // Find current song in playlist & advance sequentially in order
         const currentTrack = TRACKS[state.currentTrackIndex];
-        const currentContextIdx = contextTracks.findIndex(t => t.id === currentTrack?.id);
+        const currentContextIdx = contextTracks.findIndex(t => String(t.id) === String(currentTrack?.id));
 
         const nextContextIdx = currentContextIdx + 1;
         if (nextContextIdx < contextTracks.length) {
-            const nextTrackGlobalIdx = TRACKS.findIndex(t => t.id === contextTracks[nextContextIdx].id);
-            if (nextTrackGlobalIdx !== -1) {
-                loadTrack(nextTrackGlobalIdx, true);
-            }
+            const nextTrackGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(contextTracks[nextContextIdx].id));
+            if (nextTrackGlobalIdx !== -1) loadTrack(nextTrackGlobalIdx, true);
         } else {
-            // End of playlist reached
             if (state.repeatMode === "all") {
-                // Loop back to track 1 of the playlist
-                const firstGlobalIdx = TRACKS.findIndex(t => t.id === contextTracks[0].id);
+                const firstGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(contextTracks[0].id));
                 if (firstGlobalIdx !== -1) loadTrack(firstGlobalIdx, true);
             } else {
                 state.isPlaying = false;
@@ -1196,15 +1567,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             target = contextTracks[Math.floor(Math.random() * contextTracks.length)];
         } while (target.id === currentTrack?.id && contextTracks.length > 1);
 
-        const globalIdx = TRACKS.findIndex(t => t.id === target.id);
+        const globalIdx = TRACKS.findIndex(t => String(t.id) === String(target.id));
         if (globalIdx !== -1) loadTrack(globalIdx, true);
     }
 
-    // --- T. Next, Prev, Shuffle & Repeat Controls (Playlist in order) -------
     function playNext() {
         if (state.queue.length > 0) {
             const nextId = state.queue.shift();
-            const qIdx = TRACKS.findIndex(t => t.id === nextId);
+            const qIdx = TRACKS.findIndex(t => String(t.id) === String(nextId));
             if (qIdx !== -1) {
                 loadTrack(qIdx, true);
                 renderQueue();
@@ -1215,20 +1585,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         const contextTracks = getContextTracks();
         if (contextTracks.length === 0) return;
 
-        if (state.isShuffle) {
-            playRandomTrack();
-            return;
-        }
+        if (state.isShuffle) { playRandomTrack(); return; }
 
         const currentTrack = TRACKS[state.currentTrackIndex];
-        const currentContextIdx = contextTracks.findIndex(t => t.id === currentTrack?.id);
+        const currentContextIdx = contextTracks.findIndex(t => String(t.id) === String(currentTrack?.id));
 
         let nextContextIdx = currentContextIdx + 1;
         if (nextContextIdx >= contextTracks.length) {
             nextContextIdx = state.repeatMode === "all" ? 0 : currentContextIdx;
         }
 
-        const targetGlobalIdx = TRACKS.findIndex(t => t.id === contextTracks[nextContextIdx].id);
+        const targetGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(contextTracks[nextContextIdx].id));
         if (targetGlobalIdx !== -1) loadTrack(targetGlobalIdx, true);
     }
 
@@ -1242,20 +1609,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         const contextTracks = getContextTracks();
         if (contextTracks.length === 0) return;
 
-        if (state.isShuffle) {
-            playRandomTrack();
-            return;
-        }
+        if (state.isShuffle) { playRandomTrack(); return; }
 
         const currentTrack = TRACKS[state.currentTrackIndex];
-        const currentContextIdx = contextTracks.findIndex(t => t.id === currentTrack?.id);
+        const currentContextIdx = contextTracks.findIndex(t => String(t.id) === String(currentTrack?.id));
 
         let prevContextIdx = currentContextIdx - 1;
         if (prevContextIdx < 0) {
             prevContextIdx = state.repeatMode === "all" ? contextTracks.length - 1 : 0;
         }
 
-        const targetGlobalIdx = TRACKS.findIndex(t => t.id === contextTracks[prevContextIdx].id);
+        const targetGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(contextTracks[prevContextIdx].id));
         if (targetGlobalIdx !== -1) loadTrack(targetGlobalIdx, true);
     }
 
@@ -1277,9 +1641,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!b) return;
             b.classList.toggle("active", state.repeatMode !== "none");
             const icon = b.querySelector("i");
-            if (icon) {
-                icon.className = state.repeatMode === "one" ? "fa-solid fa-1" : "fa-solid fa-repeat";
-            }
+            if (icon) icon.className = state.repeatMode === "one" ? "fa-solid fa-1" : "fa-solid fa-repeat";
         });
 
         const msgs = { none: "Repeat Off", all: "Repeat All Songs", one: "Repeat Current Song" };
@@ -1289,7 +1651,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     [shuffleBtn, sheetShuffleBtn, expandedShuffleBtn].forEach(b => b?.addEventListener("click", toggleShuffle));
     [repeatBtn, sheetRepeatBtn, expandedRepeatBtn].forEach(b => b?.addEventListener("click", toggleRepeat));
 
-    // --- U. Progress Scrubbing --------------------------------------------
     function seekFromEvent(e, trackEl) {
         const rect = trackEl.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -1308,14 +1669,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!trackEl) return;
         let isDragging = false;
 
-        const start = (e) => {
-            isDragging = true;
-            seekFromEvent(e, trackEl);
-        };
-        const move = (e) => {
-            if (!isDragging) return;
-            seekFromEvent(e, trackEl);
-        };
+        const start = (e) => { isDragging = true; seekFromEvent(e, trackEl); };
+        const move = (e) => { if (!isDragging) return; seekFromEvent(e, trackEl); };
         const end = () => { isDragging = false; };
 
         trackEl.addEventListener("mousedown", start);
@@ -1332,7 +1687,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     makeSeekable(sheetProgressSlider);
     makeSeekable(expandedProgressSlider);
 
-    // --- V. Sound / Volume Bar Controls (Click, Drag & Wheel) -------------
     function setVolume(pct) {
         pct = Math.max(0, Math.min(1, pct));
         state.volume = pct;
@@ -1367,14 +1721,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!trackEl) return;
         let isDragging = false;
 
-        const start = (e) => {
-            isDragging = true;
-            volumeFromEvent(e, trackEl);
-        };
-        const move = (e) => {
-            if (!isDragging) return;
-            volumeFromEvent(e, trackEl);
-        };
+        const start = (e) => { isDragging = true; volumeFromEvent(e, trackEl); };
+        const move = (e) => { if (!isDragging) return; volumeFromEvent(e, trackEl); };
         const end = () => { isDragging = false; };
 
         trackEl.addEventListener("mousedown", start);
@@ -1417,7 +1765,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     audio.volume = state.volume;
     updateVolumeUI();
 
-    // --- W. Queue Drawer Management ----------------------------------------
     function renderQueue() {
         if (!queueList) return;
         const current = TRACKS[state.currentTrackIndex];
@@ -1436,7 +1783,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             html += `<p style="padding: 16px; font-size: 13px; color: var(--text-muted); text-align: center;">Queue is empty. Next tracks from the library will play automatically.</p>`;
         } else {
             html += state.queue.map((trackId, qIndex) => {
-                const t = TRACKS.find(item => item.id === trackId);
+                const t = TRACKS.find(item => String(item.id) === String(trackId));
                 if (!t) return "";
                 return `
                     <div class="queue-item" data-queue-index="${qIndex}" data-track-id="${t.id}">
@@ -1455,7 +1802,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         queueList.querySelectorAll(".queue-item:not(.active)").forEach(item => {
             item.addEventListener("click", () => {
                 const tid = item.dataset.trackId;
-                const idx = TRACKS.findIndex(t => t.id == tid);
+                const idx = TRACKS.findIndex(t => String(t.id) === String(tid));
                 if (idx !== -1) {
                     const qIdx = parseInt(item.dataset.queueIndex, 10);
                     state.queue.splice(qIdx, 1);
@@ -1489,21 +1836,34 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // --- X. Filter Navigation (Home, Liked, Local, Recent) ------------------
     function setActiveFilter(filterName, headingText) {
         state.activeFilter = filterName;
         state.activePlaylistId = null;
 
-        if (tracklistHeading) tracklistHeading.textContent = headingText;
+        const heroBanner = document.getElementById("heroBanner");
+        const recommendedSection = document.getElementById("recommendedSection");
+        const plBanner = document.getElementById("playlistDetailBanner");
+        const plActionBar = document.getElementById("playlistActionBar");
 
+        if (filterName === "all") {
+            if (heroBanner) heroBanner.style.display = "block";
+            if (recommendedSection) recommendedSection.style.display = "block";
+            if (plBanner) plBanner.style.display = "none";
+            if (plActionBar) plActionBar.style.display = "none";
+        } else {
+            if (heroBanner) heroBanner.style.display = "none";
+            if (recommendedSection) recommendedSection.style.display = "none";
+            if (plBanner) plBanner.style.display = "none";
+            if (plActionBar) plActionBar.style.display = "none";
+        }
+
+        if (tracklistHeading) tracklistHeading.textContent = headingText;
         if (viewFilterPill) {
             viewFilterPill.style.display = filterName === "all" ? "none" : "inline-block";
             viewFilterPill.textContent = headingText;
         }
 
-        if (deleteCurrentPlaylistBtn) {
-            deleteCurrentPlaylistBtn.style.display = "none";
-        }
+        if (deleteCurrentPlaylistBtn) deleteCurrentPlaylistBtn.style.display = "none";
 
         document.querySelectorAll(".sidebar .nav-item").forEach(item => item.classList.remove("active"));
         if (filterName === "all") document.getElementById("navHome")?.classList.add("active");
@@ -1541,13 +1901,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("playAllBtn")?.addEventListener("click", () => {
         const filtered = getFilteredTracks();
         if (filtered.length > 0) {
-            const firstIdx = TRACKS.findIndex(t => t.id === filtered[0].id);
+            const firstIdx = TRACKS.findIndex(t => String(t.id) === String(filtered[0].id));
             loadTrack(firstIdx, true);
             showToast(`Playing ${filtered.length} tracks`, "fa-play");
         }
     });
 
-    // --- Y. Hero Banner Buttons --------------------------------------------
     document.getElementById("heroListenNowBtn")?.addEventListener("click", () => {
         loadTrack(1, true);
         showToast("Playing Featured Release", "fa-play");
@@ -1564,7 +1923,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // --- Z. Recommended Cards Grid -----------------------------------------
     const cardsGrid = document.getElementById("cardsGrid");
     if (cardsGrid) {
         cardsGrid.innerHTML = CARDS.map((card, i) => `
@@ -1596,20 +1954,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderTrackList();
     });
 
-    // --- AA. Mobile Drawer & Fullscreen Sheet ------------------------------
     const mobileMenuBtn = document.getElementById("mobileMenuBtn");
     const sidebar = document.getElementById("sidebar");
     const sidebarOverlay = document.getElementById("sidebarOverlay");
     const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
 
-    function openDrawer() {
-        sidebar?.classList.add("open");
-        sidebarOverlay?.classList.add("active");
-    }
-    function closeDrawer() {
-        sidebar?.classList.remove("open");
-        sidebarOverlay?.classList.remove("active");
-    }
+    function openDrawer() { sidebar?.classList.add("open"); sidebarOverlay?.classList.add("active"); }
+    function closeDrawer() { sidebar?.classList.remove("open"); sidebarOverlay?.classList.remove("active"); }
 
     mobileMenuBtn?.addEventListener("click", openDrawer);
     sidebarCloseBtn?.addEventListener("click", closeDrawer);
@@ -1622,20 +1973,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     function openSheet() { mobileSheet?.classList.add("active"); }
     function closeSheet() { mobileSheet?.classList.remove("active"); }
 
-    mobileExpandBtn?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openSheet();
-    });
-
+    mobileExpandBtn?.addEventListener("click", (e) => { e.stopPropagation(); openSheet(); });
     document.getElementById("playerBar")?.addEventListener("click", (e) => {
         if (window.innerWidth <= 899 && !e.target.closest("button") && !e.target.closest(".slider-track") && !e.target.closest(".clickable-title") && !e.target.closest(".clickable-cover")) {
             openSheet();
         }
     });
-
     sheetCloseBtn?.addEventListener("click", closeSheet);
 
-    // --- Keyboard Shortcuts ------------------------------------------------
     document.addEventListener("keydown", (e) => {
         if (["input", "textarea"].includes(document.activeElement?.tagName.toLowerCase())) return;
 
@@ -1644,7 +1989,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             closeUploadModal();
             closeCreatePlaylistModal();
             addToPlaylistModal?.classList.remove("active");
+            selectSongsModal?.classList.remove("active");
             queuePanel?.classList.remove("open");
+            userInfoCard?.classList.remove("open");
+            userProfileBtn?.classList.remove("active");
         } else if (e.code === "Space") {
             e.preventDefault();
             togglePlayPause();
@@ -1669,7 +2017,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // Start App
     renderSidebarPlaylists();
     renderTrackList();
     loadTrack(0, false);
