@@ -1,4 +1,3 @@
-
 # 🎵 SoundPulse · Web Audio Player
 
 <div align="center">
@@ -71,17 +70,17 @@
 
 ## ⌨️ Keyboard Shortcuts
 
-| Key | Action |
-| :--- | :--- |
-| `Space` | Play / Pause current track |
-| `Arrow Right` | Skip forward 5 seconds |
-| `Arrow Left` | Rewind 5 seconds |
-| `Arrow Up` | Increase volume by 5% |
-| `Arrow Down` | Decrease volume by 5% |
-| `M` | Toggle Mute / Unmute |
-| `S` | Toggle Shuffle mode |
-| `R` | Cycle Repeat mode (*Off* → *All* → *One*) |
-| `Escape` | Minimize zoomed artwork / Close active modals |
+| Key           | Action                                        |
+| :------------ | :-------------------------------------------- |
+| `Space`       | Play / Pause current track                    |
+| `Arrow Right` | Skip forward 5 seconds                        |
+| `Arrow Left`  | Rewind 5 seconds                              |
+| `Arrow Up`    | Increase volume by 5%                         |
+| `Arrow Down`  | Decrease volume by 5%                         |
+| `M`           | Toggle Mute / Unmute                          |
+| `S`           | Toggle Shuffle mode                           |
+| `R`           | Cycle Repeat mode (_Off_ → _All_ → _One_)     |
+| `Escape`      | Minimize zoomed artwork / Close active modals |
 
 ---
 
@@ -93,11 +92,6 @@ No build tools, Node.js packages, or servers required. Everything runs natively 
 
 ### Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/fazlerabbicodes/cse-347-ISAD-.git](https://github.com/fazlerabbicodes/cse-347-ISAD-.git)
-   cd soundpulse-player
-
 Open the project:
 
 Double-click index.html to open it directly in your browser.
@@ -105,12 +99,12 @@ Double-click index.html to open it directly in your browser.
 Or run it using a local live server (e.g., VS Code Live Server extension or python -m http.server 8000).
 
 soundpulse-player/
-├── index.html       # Primary application markup and modal architecture
-├── style.css        # Responsive styling, design tokens, animations, and themes
-├── script.js        # Audio engine, IndexedDB handler, and UI event listeners
-├── login.html       # Authentication screen (optional integration)
-├── landing.html     # Promotional landing page (optional integration)
-└── README.md        # Project documentation
+├── index.html # Primary application markup and modal architecture
+├── style.css # Responsive styling, design tokens, animations, and themes
+├── script.js # Audio engine, IndexedDB handler, and UI event listeners
+├── login.html # Authentication screen (optional integration)
+├── landing.html # Promotional landing page (optional integration)
+└── README.md # Project documentation
 
 🛠️ Built With
 HTML5 Semantic Markup & Web Audio API
