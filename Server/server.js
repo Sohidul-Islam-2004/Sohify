@@ -2,15 +2,18 @@ const express = require("express");
 const path = require("path");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const cors = require("cors");
 require("dotenv").config();
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-const { userSchema } = require("./schema");
+const { userSchema, songSchema } = require("./schema");
 const User = mongoose.model("User", userSchema);
+const Song = mongoose.model("Song", songSchema);
 
 const PORT = process.env.PORT || 5000;
 const DB_URL = process.env.DB_URL;
@@ -19,6 +22,10 @@ mongoose
     .connect(DB_URL)
     .then(() => console.log("✅ MongoDB connected"))
     .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+/* ============================================================
+   USER AUTHENTICATION ROUTES
+   ============================================================ */
 
 app.post("/api/users/register", async (req, res) => {
     try {
@@ -113,7 +120,7 @@ app.post("/api/users/login", async (req, res) => {
                 field: "email",
                 message: "No account found with this email.",
             });
-        console.log(password, user.password);
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch)
             return res.status(401).json({
@@ -121,6 +128,7 @@ app.post("/api/users/login", async (req, res) => {
                 message: "Incorrect password. Please try again.",
             });
 
+        // Returns user info including isAdmin boolean
         res.json({
             success: true,
             message: "Logged in successfully",
@@ -128,13 +136,61 @@ app.post("/api/users/login", async (req, res) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                isAdmin: user.isAdmin,
+                isAdmin: Boolean(user.isAdmin),
                 createdAt: user.createdAt,
             },
         });
     } catch (err) {
         console.error("Login error:", err);
         res.status(500).json({ message: "Server error. Please try again." });
+    }
+});
+
+/* ============================================================
+   ONLINE SONGS ROUTES (Supabase + MongoDB)
+   ============================================================ */
+
+// Fetch all public online tracks
+app.get("/api/songs", async (req, res) => {
+    try {
+        const songs = await Song.find().sort({ createdAt: -1 }).lean();
+        res.json(songs);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to fetch songs" });
+    }
+});
+
+// Admin-only upload route for song metadata
+app.post("/api/songs", async (req, res) => {
+    try {
+        const { title, artist, album, duration, audioUrl, coverUrl, userId } = req.body;
+
+        if (!title || !audioUrl) {
+            return res.status(400).json({ message: "Title and Audio URL are required." });
+        }
+
+        // Verify user is admin
+        if (userId) {
+            const user = await User.findById(userId);
+            if (!user || !user.isAdmin) {
+                return res.status(403).json({ message: "Access denied. Admin rights required." });
+            }
+        }
+
+        const song = await Song.create({
+            title: title.trim(),
+            artist: (artist || "SoundPulse Artist").trim(),
+            album: (album || "Cloud Single").trim(),
+            duration: duration || "3:30",
+            audioUrl: audioUrl.trim(),
+            coverUrl: coverUrl ? coverUrl.trim() : "",
+            uploadedBy: userId || null,
+        });
+
+        res.status(201).json(song);
+    } catch (err) {
+        console.error("Song upload error:", err);
+        res.status(500).json({ message: "Failed to save song metadata." });
     }
 });
 
