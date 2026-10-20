@@ -30,6 +30,9 @@ const emailError = document.getElementById("emailError");
 const passwordError = document.getElementById("passwordError");
 const confirmPasswordError = document.getElementById("confirmPasswordError");
 
+// Relative API path — same origin as the page serving this file
+const API_BASE = "/api/users";
+
 // ==========================================
 // 3. LIVE PASSWORD STRENGTH METER
 // ==========================================
@@ -64,11 +67,19 @@ confirmPasswordInput.addEventListener("input", () => {
     }
 });
 
-// Clear email duplicate error on input change
+// Clear email error on input change
 emailInput.addEventListener("input", () => {
     emailError.textContent = "";
 });
 
+// Clear name error on input change
+fullNameInput.addEventListener("input", () => {
+    nameError.textContent = "";
+});
+
+// ==========================================
+// 4. HELPERS
+// ==========================================
 function clearErrors() {
     nameError.textContent = "";
     emailError.textContent = "";
@@ -76,10 +87,29 @@ function clearErrors() {
     confirmPasswordError.textContent = "";
 }
 
+function showFieldError(field, message) {
+    switch (field) {
+        case "fullName":
+            nameError.textContent = message;
+            break;
+        case "email":
+            emailError.textContent = message;
+            break;
+        case "password":
+            passwordError.textContent = message;
+            break;
+        case "confirmPassword":
+            confirmPasswordError.textContent = message;
+            break;
+        default:
+            alert(message);
+    }
+}
+
 // ==========================================
-// 4. SIGNUP WITH LOCALSTORAGE
+// 5. SIGNUP → CALL BACKEND API
 // ==========================================
-signupForm.addEventListener("submit", function (e) {
+signupForm.addEventListener("submit", async function (e) {
     e.preventDefault();
     clearErrors();
 
@@ -88,7 +118,7 @@ signupForm.addEventListener("submit", function (e) {
     const password = passwordInput.value;
     const confirmPassword = confirmPasswordInput.value;
 
-    // --- Validation Rules ---
+    // --- Client-side validation ---
     if (!fullName) {
         nameError.textContent = "Please enter your full name.";
         return;
@@ -114,32 +144,37 @@ signupForm.addEventListener("submit", function (e) {
         return;
     }
 
-    // --- Retrieve Existing Users from localStorage ---
-    const storedUsers = JSON.parse(localStorage.getItem("sohify_users")) || [];
+    // --- Send to backend ---
+    const submitBtn = signupForm.querySelector("button[type='submit']");
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating account...";
 
-    // Check if user already exists
-    const userExists = storedUsers.some(user => user.email === email);
-    if (userExists) {
-        emailError.textContent = "An account with this email already exists.";
-        return;
+    try {
+        const res = await fetch(`${API_BASE}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fullName, email, password, confirmPassword }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            // Backend returns { field, message }
+            showFieldError(data.field, data.message || "Signup failed.");
+            return;
+        }
+
+        // --- Success ---
+        sessionStorage.setItem("sohify_signup_email", email);
+        sessionStorage.setItem("sohify_signup_name", fullName);
+        window.location.href = "../login";
+
+    } catch (err) {
+        console.error("Signup error:", err);
+        alert("Network error. Please check your connection and try again.");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
-
-    // --- Save New User in localStorage ---
-    const newUser = {
-        id: Date.now(),
-        fullName: fullName,
-        email: email,
-        password: password, // Note: In production, never store raw passwords client-side
-        registeredAt: new Date().toISOString()
-    };
-
-    storedUsers.push(newUser);
-    localStorage.setItem("sohify_users", JSON.stringify(storedUsers));
-
-    // Store signup info in sessionStorage for login pre-fill and dashboard display
-    sessionStorage.setItem("sohify_signup_email", email);
-    sessionStorage.setItem("sohify_signup_name", fullName);
-
-    // Redirect to login page
-    window.location.href = "../login";
 });
