@@ -5,63 +5,20 @@
 const API_BASE_URL = "/api";
 
 // ==========================================================================
-// 2. INDEXEDDB LOCAL AUDIO STORAGE (Private to this device/user)
+// 2. API HELPERS (all data lives in MongoDB; all files live in Supabase)
 // ==========================================================================
-const DB_NAME = "SoundPulse_DB";
-const STORE_NAME = "local_songs";
-
-function getDB() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 2);
-        req.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: "id" });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
+async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE_URL}${path}`, options);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `Request failed (${res.status})`);
+    return data;
 }
 
-async function saveSongToIndexedDB(trackObj, blob) {
-    try {
-        const db = await getDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).put({
-            id: trackObj.id,
-            userId: trackObj.userId || "guest",
-            title: trackObj.title,
-            artist: trackObj.artist,
-            album: trackObj.album,
-            duration: trackObj.duration,
-            cover: trackObj.cover,
-            liked: trackObj.liked,
-            blob: blob
-        });
-    } catch (err) {
-        console.warn("IndexedDB save failed:", err);
-    }
-}
-
-async function loadSongsFromIndexedDB(currentUserId = "guest") {
-    try {
-        const db = await getDB();
-        return new Promise((resolve) => {
-            const tx = db.transaction(STORE_NAME, "readonly");
-            const req = tx.objectStore(STORE_NAME).getAll();
-            req.onsuccess = () => {
-                const all = req.result || [];
-                // Only return tracks owned by this user/device
-                const userTracks = all.filter(item => !item.userId || item.userId === currentUserId || item.userId === "guest");
-                resolve(userTracks);
-            };
-            req.onerror = () => resolve([]);
-        });
-    } catch {
-        return [];
-    }
-}
+const jsonOpts = (method, body) => ({
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+});
 
 // ==========================================================================
 // 3. MAIN DASHBOARD APPLICATION
@@ -115,8 +72,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (headerUploadBtn) headerUploadBtn.style.display = "none";
     }
 
-    // Load saved avatar
-    const savedUserAvatar = localStorage.getItem("soundpulse_user_avatar") || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop";
+    // Avatar (stored in Supabase, URL kept in MongoDB)
+    const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop";
+    let userAvatarUrl = DEFAULT_AVATAR; // replaced by the Supabase URL after the library loads
+    const savedUserAvatar = DEFAULT_AVATAR;
 
     // Update Header & Popover with server data
     if (currentUserEmail && currentUserName) {
@@ -159,19 +118,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Profile photo upload option
     cardAvatarUploadBtn?.addEventListener("click", () => userAvatarInput?.click());
 
-    userAvatarInput?.addEventListener("change", (e) => {
+    userAvatarInput?.addEventListener("change", async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file || !file.type.startsWith("image/")) return;
+        if (!isLoggedIn()) { showToast("Please log in to change your picture", "fa-lock"); return; }
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = event.target.result;
-            if (userAvatar) userAvatar.src = dataUrl;
-            if (cardAvatarImg) cardAvatarImg.src = dataUrl;
-            localStorage.setItem("soundpulse_user_avatar", dataUrl);
+        try {
+            const formData = new FormData();
+            formData.append("avatar", file);
+            const data = await api(`/users/${currentUserId}/avatar`, { method: "POST", body: formData });
+            userAvatarUrl = data.avatarUrl;
+            if (userAvatar) userAvatar.src = userAvatarUrl;
+            if (cardAvatarImg) cardAvatarImg.src = userAvatarUrl;
             showToast("Profile picture updated!", "fa-camera");
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+            showToast(err.message || "Avatar upload failed", "fa-triangle-exclamation");
+        }
     });
 
     // Logout Button (Located under user info card)
@@ -184,7 +146,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         sessionStorage.clear();
         showToast("Logged out successfully");
-        setTimeout(() => window.location.href = "/home", 500);
+        setTimeout(() => window.location.href = "/", 500);
     });
 
     function updateUserCardStats() {
@@ -196,138 +158,71 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("cardStatPlaylists") && (document.getElementById("cardStatPlaylists").textContent = plCount);
     }
 
-    // --- C. Favorite / Liked Songs LocalStorage ----------------------------
-    function getStoredLikedIds() {
-        try {
-            return JSON.parse(localStorage.getItem(`soundpulse_likes_${currentUserId}`)) || [1];
-        } catch {
-            return [1];
-        }
+    // --- C/D. Likes, Recents & Playlists live in MongoDB -------------------
+    let playlists = [];
+    let initialRecent = [];
+    const isLoggedIn = () => !!currentUserId && currentUserId !== "guest";
+    function requireLogin(msg = "Please log in to use this feature") {
+        if (isLoggedIn()) return true;
+        showToast(msg, "fa-lock");
+        return false;
     }
-    function saveStoredLikedIds(ids) {
-        localStorage.setItem(`soundpulse_likes_${currentUserId}`, JSON.stringify(ids));
-    }
-
-    // --- D. Custom Playlists LocalStorage ----------------------------------
-    const DEFAULT_PLAYLISTS = [
-        { id: "pl_1", name: "Chill Lofi Beats", trackIds: [2, 4] },
-        { id: "pl_2", name: "Gym Hype Mix", trackIds: [1, 3] },
-        { id: "pl_3", name: "Night Drive Synth", trackIds: [1, 2] }
-    ];
-
-    function getStoredPlaylists() {
-        try {
-            const data = localStorage.getItem(`soundpulse_playlists_${currentUserId}`);
-            return data ? JSON.parse(data) : DEFAULT_PLAYLISTS;
-        } catch {
-            return DEFAULT_PLAYLISTS;
-        }
-    }
-
-    function saveStoredPlaylists(pls) {
-        localStorage.setItem(`soundpulse_playlists_${currentUserId}`, JSON.stringify(pls));
-    }
-
-    let playlists = getStoredPlaylists();
 
     // --- E. Initial Tracks & MongoDB Cloud Catalog Fetch -------------------
     const DEFAULT_COVER = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop";
 
-    let TRACKS = [
-        {
-            id: 1,
-            title: "Starboy",
-            artist: "The Weeknd, Daft Punk",
-            album: "Starboy LP",
-            duration: "3:50",
-            cover: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop",
-            src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-            liked: false,
-            isLocal: false
-        },
-        {
-            id: 2,
-            title: "Midnight City",
-            artist: "M83",
-            album: "Saturdays = Youth",
-            duration: "4:03",
-            cover: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop",
-            src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-            liked: false,
-            isLocal: false
-        },
-        {
-            id: 3,
-            title: "Get Lucky",
-            artist: "Daft Punk ft. Pharrell",
-            album: "Random Access Memories",
-            duration: "4:08",
-            cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&auto=format&fit=crop",
-            src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-            liked: false,
-            isLocal: false
-        },
-        {
-            id: 4,
-            title: "Solar Drift",
-            artist: "Kavinsky Style",
-            album: "Outrun Nights",
-            duration: "3:42",
-            cover: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&auto=format&fit=crop",
-            src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-            liked: false,
-            isLocal: false
-        }
-    ];
+    let TRACKS = [];
 
-    // Fetch songs uploaded to MongoDB backend
-    async function fetchOnlineSongsFromMongoDB() {
+    // Convert a MongoDB song document into the shape the UI uses
+    function mapSong(s) {
+        return {
+            id: String(s._id),
+            userId: s.uploadedBy ? String(s.uploadedBy) : null,
+            title: s.title,
+            artist: s.artist,
+            album: s.album || "Cloud Catalog",
+            duration: s.duration || "--:--",
+            cover: s.coverUrl || DEFAULT_COVER,
+            src: s.audioUrl,
+            liked: false,
+            isLocal: !!s.isPrivate // "Private" = only visible to the uploader
+        };
+    }
+
+    // Songs: public catalog + this user's private songs (MongoDB; files from Supabase)
+    async function fetchSongs() {
         try {
-            const res = await fetch(`${API_BASE_URL}/songs`);
-            if (res.ok) {
-                const onlineSongs = await res.json();
-                if (Array.isArray(onlineSongs) && onlineSongs.length > 0) {
-                    const formatted = onlineSongs.map(s => ({
-                        id: s._id || s.id,
-                        title: s.title,
-                        artist: s.artist,
-                        album: s.album || "Cloud Catalog",
-                        duration: s.duration || "3:30",
-                        cover: s.coverUrl || DEFAULT_COVER,
-                        src: s.audioUrl,
-                        liked: false,
-                        isLocal: false
-                    }));
-                    TRACKS = [...formatted, ...TRACKS];
-                }
-            }
+            const q = isLoggedIn() ? `?userId=${encodeURIComponent(currentUserId)}` : "";
+            const songs = await api(`/songs${q}`);
+            TRACKS = Array.isArray(songs) ? songs.map(mapSong) : [];
         } catch (err) {
-            console.log("MongoDB API running locally/offline:", err.message);
+            console.error("Failed to load songs:", err);
+            showToast("Could not load songs from the server", "fa-triangle-exclamation");
         }
     }
 
-    await fetchOnlineSongsFromMongoDB();
+    // Library: likes, recents, playlists, avatar (MongoDB)
+    async function loadLibrary() {
+        if (!isLoggedIn()) return;
+        try {
+            const lib = await api(`/users/${currentUserId}/library`);
+            const liked = new Set(lib.likedSongs || []);
+            TRACKS.forEach(t => { t.liked = liked.has(t.id); });
+            initialRecent = lib.recentSongs || [];
+            playlists = (lib.playlists || []).map(p => ({ id: p._id, name: p.name, trackIds: p.songs || [] }));
+            if (lib.avatarUrl) {
+                userAvatarUrl = lib.avatarUrl;
+                if (userAvatar) userAvatar.src = userAvatarUrl;
+                if (cardAvatarImg) cardAvatarImg.src = userAvatarUrl;
+            }
+        } catch (err) {
+            console.error("Failed to load library:", err);
+            showToast("Could not load your library", "fa-triangle-exclamation");
+        }
+    }
 
-    const likedIds = getStoredLikedIds();
-    TRACKS.forEach(t => { t.liked = likedIds.includes(t.id); });
-
-    // Load Local User Songs from IndexedDB (Strictly private to this user/device)
-    const storedLocalSongs = await loadSongsFromIndexedDB(currentUserId);
-    storedLocalSongs.forEach(saved => {
-        const objectUrl = URL.createObjectURL(saved.blob);
-        TRACKS.push({
-            id: saved.id,
-            userId: saved.userId,
-            title: saved.title,
-            artist: saved.artist,
-            album: saved.album || "Local Storage",
-            duration: saved.duration || "--:--",
-            cover: saved.cover || DEFAULT_COVER,
-            src: objectUrl,
-            liked: likedIds.includes(saved.id),
-            isLocal: true
-        });
-    });
+    await fetchSongs();
+    await loadLibrary();
 
     const CARDS = [
         {
@@ -370,7 +265,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         activeFilter: "all",
         activePlaylistId: null,
         queue: [],
-        recentPlayed: [],
+        recentPlayed: initialRecent,
         isCloudUploadMode: false
     };
 
@@ -669,8 +564,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             plCoverImg.src = plTracks.length > 0 ? plTracks[0].cover : DEFAULT_COVER;
         }
 
-        const userName = localStorage.getItem("sohify_username") || "Listener";
-        const userAvatarSrc = localStorage.getItem("soundpulse_user_avatar") || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop";
+        const userName = currentUserName || "Listener";
+        const userAvatarSrc = userAvatarUrl;
         document.getElementById("plCreatorName") && (document.getElementById("plCreatorName").textContent = userName);
         document.getElementById("plCreatorAvatar") && (document.getElementById("plCreatorAvatar").src = userAvatarSrc);
 
@@ -736,36 +631,43 @@ document.addEventListener("DOMContentLoaded", async () => {
         createPlaylistModal?.classList.remove("active");
     }
 
-    function createNewPlaylist() {
+    async function createNewPlaylist() {
         const name = (newPlaylistName?.value || "").trim();
         if (!name) {
             showToast("Please enter a playlist name", "fa-triangle-exclamation");
             return;
         }
+        if (!requireLogin("Please log in to create playlists")) return;
 
-        const newId = "pl_" + Date.now();
-        const newPl = { id: newId, name: name, trackIds: [] };
-
-        playlists.push(newPl);
-        saveStoredPlaylists(playlists);
-        renderSidebarPlaylists();
-        closeCreatePlaylistModal();
-        showToast(`Created playlist "${name}"`, "fa-circle-plus");
-        selectPlaylist(newId, false);
+        try {
+            const pl = await api(`/users/${currentUserId}/playlists`, jsonOpts("POST", { name }));
+            const newPl = { id: String(pl._id), name: pl.name, trackIds: [] };
+            playlists.push(newPl);
+            renderSidebarPlaylists();
+            closeCreatePlaylistModal();
+            showToast(`Created playlist "${name}"`, "fa-circle-plus");
+            selectPlaylist(newPl.id, false);
+        } catch (err) {
+            showToast(err.message || "Could not create playlist", "fa-triangle-exclamation");
+        }
     }
 
-    function deletePlaylist(plId) {
+    async function deletePlaylist(plId) {
         const pl = playlists.find(p => p.id === plId);
         if (!pl) return;
         if (!confirm(`Are you sure you want to delete the playlist "${pl.name}"?`)) return;
 
-        playlists = playlists.filter(p => p.id !== plId);
-        saveStoredPlaylists(playlists);
-        renderSidebarPlaylists();
-        showToast(`Deleted playlist "${pl.name}"`, "fa-trash-can");
+        try {
+            await api(`/playlists/${plId}?userId=${encodeURIComponent(currentUserId)}`, { method: "DELETE" });
+            playlists = playlists.filter(p => p.id !== plId);
+            renderSidebarPlaylists();
+            showToast(`Deleted playlist "${pl.name}"`, "fa-trash-can");
 
-        if (state.activeFilter === "playlist" && state.activePlaylistId === plId) {
-            setActiveFilter("all", "Recently Played");
+            if (state.activeFilter === "playlist" && state.activePlaylistId === plId) {
+                setActiveFilter("all", "Recently Played");
+            }
+        } catch (err) {
+            showToast(err.message || "Could not delete playlist", "fa-triangle-exclamation");
         }
     }
 
@@ -811,20 +713,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         addToPlaylistModal.classList.add("active");
     }
 
-    function toggleTrackInPlaylist(plId, trackId) {
+    async function toggleTrackInPlaylist(plId, trackId) {
         const pl = playlists.find(p => p.id === plId);
         if (!pl) return;
-        if (!pl.trackIds) pl.trackIds = [];
+        if (!requireLogin("Please log in to edit playlists")) return;
 
-        if (pl.trackIds.includes(trackId)) {
-            pl.trackIds = pl.trackIds.filter(id => id !== trackId);
-            showToast(`Removed from "${pl.name}"`, "fa-circle-minus");
-        } else {
-            pl.trackIds.push(trackId);
-            showToast(`Added to "${pl.name}"`, "fa-circle-check");
+        try {
+            const data = await api(`/playlists/${plId}/toggle-song`, jsonOpts("PUT", { songId: String(trackId), userId: currentUserId }));
+            pl.trackIds = data.songs;
+            showToast(data.added ? `Added to "${pl.name}"` : `Removed from "${pl.name}"`,
+                data.added ? "fa-circle-check" : "fa-circle-minus");
+        } catch (err) {
+            showToast(err.message || "Could not update playlist", "fa-triangle-exclamation");
+            return;
         }
 
-        saveStoredPlaylists(playlists);
         renderSidebarPlaylists();
         addToPlaylistModal.classList.remove("active");
 
@@ -835,7 +738,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     closeAddModalBtn?.addEventListener("click", () => addToPlaylistModal?.classList.remove("active"));
 
-    // --- PLAYLIST ADD SONGS MODAL LOGIC (Both Online & Local) ---
+    // --- PLAYLIST ADD SONGS MODAL LOGIC (Public & Private) ---
     const selectSongsModal = document.getElementById("selectSongsModal");
     const plActionAddSongsBtn = document.getElementById("plActionAddSongsBtn");
     const closeSelectSongsModalBtn = document.getElementById("closeSelectSongsModalBtn");
@@ -878,7 +781,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         <div class="select-song-subtitle">
                             <span>${t.artist}</span>
                             <span class="song-source-badge ${t.isLocal ? 'local' : 'cloud'}">
-                                ${t.isLocal ? '<i class="fa-solid fa-folder-open"></i> Local' : '<i class="fa-solid fa-cloud"></i> Server'}
+                                ${t.isLocal ? '<i class="fa-solid fa-lock"></i> Private' : '<i class="fa-solid fa-cloud"></i> Server'}
                             </span>
                             <span>• ${t.duration || '--:--'}</span>
                         </div>
@@ -892,8 +795,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Attach click listener for toggling each song in/out of the playlist
         selectSongsList.querySelectorAll(".btn-toggle-pl-song").forEach(btn => {
-            btn.addEventListener("click", () => {
+            btn.addEventListener("click", async () => {
                 const trackIdStr = String(btn.dataset.trackId);
+                if (!requireLogin("Please log in to edit playlists")) return;
+                try {
+                    await api(`/playlists/${pl.id}/toggle-song`, jsonOpts("PUT", { songId: trackIdStr, userId: currentUserId }));
+                } catch (err) {
+                    showToast(err.message || "Could not update playlist", "fa-triangle-exclamation");
+                    return;
+                }
                 const track = TRACKS.find(t => String(t.id) === trackIdStr);
                 const isCurrentlyAdded = pl.trackIds.some(id => String(id) === trackIdStr);
 
@@ -911,8 +821,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     showToast(`Added "${track?.title}" to playlist`, "fa-circle-check");
                 }
 
-                // Persist playlist updates
-                saveStoredPlaylists(playlists);
+                // (playlist already saved to MongoDB above)
                 renderSidebarPlaylists();
                 renderTrackList();
 
@@ -964,17 +873,30 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderSelectSongsList(e.target.value);
     });
 
-    // --- L. Upload Workflow: Admin Cloud vs. User Local -------------------
+    // Read the audio length in the browser so it can be stored in MongoDB
+    function getAudioDuration(file) {
+        return new Promise(resolve => {
+            const url = URL.createObjectURL(file);
+            const probe = new Audio();
+            const done = (v) => { URL.revokeObjectURL(url); resolve(v); };
+            probe.addEventListener("loadedmetadata", () => done(isFinite(probe.duration) ? formatTime(probe.duration) : "--:--"));
+            probe.addEventListener("error", () => done("--:--"));
+            setTimeout(() => done("--:--"), 5000);
+            probe.src = url;
+        });
+    }
+
+    // --- L. Upload Workflow: Admin Public Catalog vs. User Private Cloud ---
     function openUploadModal(isCloud = false, preloadedAudioFile = null) {
         if (!uploadSongModal) return;
         state.isCloudUploadMode = isCloud;
 
         if (isCloud) {
-            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Admin Cloud Upload (Server + MongoDB)`;
+            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Admin Cloud Upload (Supabase + MongoDB)`;
             if (confirmUploadBtnText) confirmUploadBtnText.textContent = "Upload to Cloud Catalog";
         } else {
-            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Local Song (Private to You)`;
-            if (confirmUploadBtnText) confirmUploadBtnText.textContent = "Save Locally & Play";
+            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Private Song (Cloud, Only You)`;
+            if (confirmUploadBtnText) confirmUploadBtnText.textContent = "Upload Privately & Play";
         }
 
         uploadSongModal.classList.add("active");
@@ -1017,7 +939,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (audioFileNameDisplay) audioFileNameDisplay.textContent = file.name;
 
         let cleanName = file.name.replace(/\.[^/.]+$/, "");
-        let artist = "Local Artist";
+        let artist = "Unknown Artist";
         let title = cleanName;
 
         if (cleanName.includes(" - ")) {
@@ -1058,87 +980,44 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const title = (uploadSongTitle?.value || "").trim() || currentSelectedAudioFile.name.replace(/\.[^/.]+$/, "");
-        const artist = (uploadSongArtist?.value || "").trim() || (state.isCloudUploadMode ? "SoundPulse Artist" : "Local Artist");
+        const artist = (uploadSongArtist?.value || "").trim() || (state.isCloudUploadMode ? "SoundPulse Artist" : "Unknown Artist");
 
 
         confirmUploadBtn.disabled = true;
         confirmUploadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
 
         try {
-            // ADMIN CLOUD UPLOAD -> BACKEND (SERVER + MONGODB + CLOUD LIST)
-            if (state.isCloudUploadMode) {
-                showToast("Uploading to server...", "fa-cloud-arrow-up");
+            const isPrivate = !state.isCloudUploadMode;
+            if (!isLoggedIn()) throw new Error("Please log in to upload songs.");
+            if (!isPrivate && !isAdmin) throw new Error("Only admins can publish to the cloud catalog.");
 
-                const formData = new FormData();
-                formData.append("audio", currentSelectedAudioFile);
-                if (currentSelectedCoverFile) formData.append("cover", currentSelectedCoverFile);
-                formData.append("title", title);
-                formData.append("artist", artist);
+            showToast(isPrivate ? "Saving to your private library..." : "Uploading to server...", "fa-cloud-arrow-up");
 
+            const album = (uploadSongAlbum?.value || "").trim();
+            const duration = await getAudioDuration(currentSelectedAudioFile);
 
-                formData.append("userId", currentUserId);
-                console.log(formData);
-                const res = await fetch(`${API_BASE_URL}/songs`, {
-                    method: "POST",
-                    body: formData, // let browser set Content-Type (multipart) + boundary
-                });
+            // Files go to Supabase Storage, metadata goes to MongoDB (done by the backend)
+            const formData = new FormData();
+            formData.append("audio", currentSelectedAudioFile);
+            if (currentSelectedCoverFile) formData.append("cover", currentSelectedCoverFile);
+            formData.append("title", title);
+            formData.append("artist", artist);
+            formData.append("album", album);
+            formData.append("duration", duration);
+            formData.append("userId", currentUserId);
+            formData.append("isPrivate", String(isPrivate));
 
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.error || "Server upload failed");
-                }
+            const savedSong = await api("/songs", { method: "POST", body: formData });
 
-                const savedSong = await res.json();
-
-                const newCloudTrack = {
-                    id: savedSong._id,
-                    title: savedSong.title,
-                    artist: savedSong.artist,
-                    album: savedSong.album || "Cloud Catalog",
-                    duration: savedSong.duration || "0:00",
-                    cover: savedSong.coverUrl || DEFAULT_COVER,
-                    src: savedSong.audioUrl,
-                    liked: false,
-                    isLocal: false,
-                };
-
-                TRACKS.unshift(newCloudTrack);
-                showToast(`Cloud song "${title}" published globally!`, "fa-cloud-check");
-                renderTrackList();
-                loadTrack(0, true);
-
-                // REGULAR USER LOCAL IMPORT -> INDEXEDDB (Private to user)
+            TRACKS.unshift(mapSong(savedSong));
+            if (isPrivate) {
+                showToast(`Saved "${title}" to your private library!`, "fa-floppy-disk");
+                setActiveFilter("local", "My Private Songs");
             } else {
-                const trackId = "local_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-                const objectUrl = URL.createObjectURL(currentSelectedAudioFile);
-
-                const newLocalTrack = {
-                    id: trackId,
-                    userId: currentUserId,
-                    title: title,
-                    artist: artist,
-                    album: album,
-                    duration: "--:--",
-                    cover: currentSelectedCoverData || DEFAULT_COVER,
-                    src: objectUrl,
-                    liked: false,
-                    isLocal: true
-                };
-
-                TRACKS.unshift(newLocalTrack);
-                await saveSongToIndexedDB(newLocalTrack, currentSelectedAudioFile);
-
-                const probeAudio = new Audio();
-                probeAudio.src = objectUrl;
-                probeAudio.addEventListener("loadedmetadata", () => {
-                    newLocalTrack.duration = formatTime(probeAudio.duration);
-                    renderTrackList();
-                });
-
-                showToast(`Saved "${title}" to your private local files!`, "fa-floppy-disk");
-                setActiveFilter("local", "Local Files");
-                loadTrack(0, true);
+                showToast(`Cloud song "${title}" published globally!`, "fa-cloud-arrow-up");
+                renderTrackList();
             }
+            loadTrack(0, true);
 
             closeUploadModal();
         } catch (error) {
@@ -1146,7 +1025,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             showToast(error.message || "Upload failed", "fa-triangle-exclamation");
         } finally {
             confirmUploadBtn.disabled = false;
-            confirmUploadBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">${state.isCloudUploadMode ? 'Upload to Cloud Catalog' : 'Save Locally & Play'}</span>`;
+            confirmUploadBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">${state.isCloudUploadMode ? 'Upload to Cloud Catalog' : 'Upload Privately & Play'}</span>`;
         }
     });
 
@@ -1239,7 +1118,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (state.activeFilter === "liked") {
                 emptyMsg = "You haven't liked any songs yet! Click the heart icon on any track to add it here.";
             } else if (state.activeFilter === "local") {
-                emptyMsg = "No local songs imported yet! Click 'Import Local Song' to store songs privately on this device.";
+                emptyMsg = "No private songs yet! Click 'Add Private Song' to upload songs only you can see.";
             } else if (state.activeFilter === "playlist") {
                 emptyMsg = "This playlist is empty. Add songs by clicking the '+' icon next to any song in the list!";
             }
@@ -1271,7 +1150,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <img src="${t.cover}" alt="${t.title}" class="track-cover">
                     <div class="track-info">
                         <span class="track-title">${t.title}</span>
-                        <span class="track-artist">${t.artist} ${t.isLocal ? '<span style="font-size: 10px; color: var(--accent-green);">(Local)</span>' : ''}</span>
+                        <span class="track-artist">${t.artist} ${t.isLocal ? '<span style="font-size: 10px; color: var(--accent-green);">(Private)</span>' : ''}</span>
                     </div>
                     <span class="track-album-name">${t.album}</span>
                     <span class="track-duration">${t.duration}</span>
@@ -1319,21 +1198,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // --- O. Favorite Toggle & Sync -----------------------------------------
-    function toggleFavorite(trackId) {
+    async function toggleFavorite(trackId) {
         const track = TRACKS.find(t => String(t.id) === String(trackId));
         if (!track) return;
+        if (!requireLogin("Please log in to save favorites")) return;
 
-        track.liked = !track.liked;
-        let storedLikes = getStoredLikedIds();
+        const previous = track.liked;
+        track.liked = !previous;          // optimistic update
+        syncGlobalLikeState();
+        renderTrackList();
 
-        if (track.liked) {
-            if (!storedLikes.includes(track.id)) storedLikes.push(track.id);
-            showToast(`Added "${track.title}" to Favorites`, "fa-heart");
-        } else {
-            storedLikes = storedLikes.filter(item => String(item) !== String(track.id));
-            showToast(`Removed "${track.title}" from Favorites`, "fa-heart-crack");
+        try {
+            const data = await api(`/users/${currentUserId}/like`, jsonOpts("POST", { songId: track.id }));
+            track.liked = data.liked;
+            showToast(data.liked ? `Added "${track.title}" to Favorites` : `Removed "${track.title}" from Favorites`,
+                data.liked ? "fa-heart" : "fa-heart-crack");
+        } catch (err) {
+            track.liked = previous;       // roll back
+            showToast(err.message || "Could not update favorite", "fa-triangle-exclamation");
         }
-        saveStoredLikedIds(storedLikes);
 
         syncGlobalLikeState();
         renderTrackList();
@@ -1370,8 +1253,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         audio.src = track.src;
         audio.load();
         audio.volume = state.isMuted ? 0 : state.volume;
-
-        state.recentPlayed = [track.id, ...state.recentPlayed.filter(id => id !== track.id)].slice(0, 10);
 
         if (currentTitle) currentTitle.textContent = track.title;
         if (currentArtist) currentArtist.textContent = track.artist;
@@ -1843,7 +1724,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("navLocal")?.addEventListener("click", (e) => {
         e.preventDefault();
-        setActiveFilter("local", "Local Files");
+        setActiveFilter("local", "My Private Songs");
         closeDrawer();
     });
 
@@ -1969,6 +1850,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             toggleShuffle();
         } else if (e.key.toLowerCase() === "r") {
             toggleRepeat();
+        }
+    });
+
+    // Save "recently played" to MongoDB whenever a song actually starts playing
+    audio.addEventListener("play", () => {
+        const track = TRACKS[state.currentTrackIndex];
+        if (!track || state.recentPlayed[0] === track.id) return;
+        state.recentPlayed = [track.id, ...state.recentPlayed.filter(id => id !== track.id)].slice(0, 10);
+        if (isLoggedIn()) {
+            api(`/users/${currentUserId}/recent`, jsonOpts("POST", { songId: track.id }))
+                .catch(err => console.warn("Could not save recent song:", err.message));
         }
     });
 
