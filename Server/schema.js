@@ -40,7 +40,7 @@ const songSchema = new mongoose.Schema(
         audioUrl: { type: String, required: true },               // Supabase URL
         coverUrl: { type: String, default: "" },                  // Supabase URL
         uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        
+        isPrivate: { type: Boolean, default: false }
     },
     { timestamps: true }
 );
