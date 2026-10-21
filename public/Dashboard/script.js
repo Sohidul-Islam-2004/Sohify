@@ -4,7 +4,7 @@
 const API_BASE_URL = "/api";
 
 // ==========================================================================
-// 2. API HELPERS (all data lives in MongoDB; all files live in Supabase)
+// 2. API HELPERS
 // ==========================================================================
 async function api(path, options = {}) {
     const res = await fetch(`${API_BASE_URL}${path}`, options);
@@ -65,7 +65,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const userAvatarInput = document.getElementById("userAvatarInput");
     const headerUploadBtn = document.getElementById("headerUploadBtn");
 
-    // Read stored credentials saved by login.js
     const currentUserEmail = localStorage.getItem("sohify_user") || sessionStorage.getItem("sohify_user");
     const currentUserName = localStorage.getItem("sohify_username") || sessionStorage.getItem("sohify_username");
     const currentUserId = localStorage.getItem("sohify_user_id") || sessionStorage.getItem("sohify_user_id") || "guest";
@@ -73,18 +72,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const isLoggedIn = () => !!currentUserId && currentUserId !== "guest" && !!currentUserEmail;
 
-    // RESTRICTION: "Upload Audio" is ONLY visible for verified Admin
     if (isLoggedIn() && isAdmin) {
         if (headerUploadBtn) headerUploadBtn.style.display = "inline-flex";
     } else {
         if (headerUploadBtn) headerUploadBtn.style.display = "none";
     }
 
-    // Avatar (stored in Supabase, URL kept in MongoDB)
     const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop";
     let userAvatarUrl = DEFAULT_AVATAR;
 
-    // Update Header & Popover with server data
     if (isLoggedIn()) {
         if (displayUserName) displayUserName.textContent = currentUserName || "Listener";
         if (cardUserName) cardUserName.textContent = currentUserName || "Listener";
@@ -105,7 +101,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (userAvatar) userAvatar.src = userAvatarUrl;
     if (cardAvatarImg) cardAvatarImg.src = userAvatarUrl;
 
-    // Toggle User Info Card when clicking user profile
     userProfileBtn?.addEventListener("click", (e) => {
         e.stopPropagation();
         userProfileBtn.classList.toggle("active");
@@ -122,7 +117,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // Profile photo upload option
     cardAvatarUploadBtn?.addEventListener("click", () => {
         if (!requireLogin("Please log in to change your profile picture")) return;
         userAvatarInput?.click();
@@ -148,7 +142,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // Logout / Login Button (Located under user info card)
     cardLogoutBtn?.addEventListener("click", () => {
         if (!isLoggedIn()) {
             window.location.href = "login.html";
@@ -177,7 +170,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (elPl) elPl.textContent = plCount;
     }
 
-    // --- C/D. Likes, Recents & Playlists live in MongoDB -------------------
+    // --- C/D. Likes, Recents & Playlists -----------------------------------
     let playlists = [];
     let initialRecent = [];
 
@@ -187,12 +180,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         return false;
     }
 
-    // --- E. Initial Tracks & MongoDB Cloud Catalog Fetch -------------------
     const DEFAULT_COVER = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop";
-
     let TRACKS = [];
 
-    // Convert a MongoDB song document into the shape the UI uses
     function mapSong(s) {
         return {
             id: String(s._id),
@@ -208,7 +198,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
     }
 
-    // Songs: public catalog + this user's private songs
     async function fetchSongs() {
         try {
             const q = isLoggedIn() ? `?userId=${encodeURIComponent(currentUserId)}` : "";
@@ -220,7 +209,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // Library: likes, recents, playlists, avatar
     async function loadLibrary() {
         if (!isLoggedIn()) return;
         try {
@@ -248,35 +236,67 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+    // --- E. Dynamic Home Screen Rendering ----------------------------------
+    let heroTrack = null;
+
+    function renderHomeSections() {
+        const publicTracks = TRACKS.filter(t => !t.isLocal);
+
+        const latestGrid = document.getElementById("latestUploadsGrid");
+        const heroBanner = document.getElementById("heroBanner");
+
+        if (publicTracks.length === 0) {
+            if (latestGrid) latestGrid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><p>No public tracks on the server yet.</p></div>`;
+            if (heroBanner) heroBanner.style.display = "none";
+            return;
+        }
+
+        if (heroBanner) heroBanner.style.display = "block";
+
+        // 1. Hero Recommended (Randomly picked public track)
+        heroTrack = publicTracks[Math.floor(Math.random() * publicTracks.length)];
+        if (heroBanner && heroTrack) {
+            heroBanner.style.backgroundImage = `linear-gradient(135deg, rgba(20, 20, 25, 0.85) 0%, rgba(79, 70, 229, 0.75) 100%), url('${escapeHtml(heroTrack.cover)}')`;
+            heroBanner.style.backgroundSize = "cover";
+            heroBanner.style.backgroundPosition = "center";
+            document.getElementById("heroTitle").textContent = heroTrack.title;
+            document.getElementById("heroDesc").textContent = `Recommended for you: ${heroTrack.artist} • ${heroTrack.album || 'Cloud Catalog'}`;
+        }
+
+        // 2. Latest Server Uploads (Top 5 public tracks via DB sort order)
+        const latestTracks = publicTracks.slice(0, 5);
+        if (latestGrid) {
+            latestGrid.innerHTML = latestTracks.map(t => createCardHTML(t)).join("");
+            attachCardListeners(latestGrid);
+        }
+    }
+
+    function createCardHTML(t) {
+        return `
+            <div class="music-card" data-track-id="${escapeHtml(t.id)}">
+                <div class="card-thumb">
+                    <img src="${escapeHtml(t.cover)}" alt="${escapeHtml(t.title)}">
+                    <button class="play-float-btn" title="Play"><i class="fa-solid fa-play"></i></button>
+                </div>
+                <h4 class="card-name">${escapeHtml(t.title)}</h4>
+                <p class="card-desc">${escapeHtml(t.artist)}</p>
+            </div>
+        `;
+    }
+
+    function attachCardListeners(container) {
+        container.querySelectorAll(".music-card").forEach(card => {
+            card.addEventListener("click", () => {
+                const trackId = card.dataset.trackId;
+                const idx = TRACKS.findIndex(t => String(t.id) === trackId);
+                if (idx !== -1) loadTrack(idx, true);
+            });
+        });
+    }
+
     await fetchSongs();
     await loadLibrary();
-
-    const CARDS = [
-        {
-            title: "Acoustic Chill",
-            desc: "Soft guitar melodies & soothing vocals",
-            cover: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop",
-            trackIndex: 1
-        },
-        {
-            title: "Cyberpunk 2099",
-            desc: "Dark synthwave & driving basslines",
-            cover: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop",
-            trackIndex: 0
-        },
-        {
-            title: "Top Global 50",
-            desc: "The most streamed tracks right now",
-            cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&auto=format&fit=crop",
-            trackIndex: 2
-        },
-        {
-            title: "Deep Focus Flow",
-            desc: "Ambient textures for high productivity",
-            cover: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&auto=format&fit=crop",
-            trackIndex: 3
-        }
-    ];
+    renderHomeSections();
 
     // --- F. Audio Player State & References --------------------------------
     const audio = document.getElementById("audioElement");
@@ -581,17 +601,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.activeFilter = "playlist";
         state.activePlaylistId = pl.id;
 
-        // 1. Hide Home Hero & Recommended Grid
-        const heroBanner = document.getElementById("heroBanner");
-        const recommendedSection = document.getElementById("recommendedSection");
-        if (heroBanner) heroBanner.style.display = "none";
-        if (recommendedSection) recommendedSection.style.display = "none";
+        const homeViewContainer = document.getElementById("homeViewContainer");
+        if (homeViewContainer) homeViewContainer.style.display = "none";
 
-        // 2. Show & Populate Spotify-Style Playlist Banner
         const plBanner = document.getElementById("playlistDetailBanner");
         const plActionBar = document.getElementById("playlistActionBar");
         if (plBanner) plBanner.style.display = "flex";
         if (plActionBar) plActionBar.style.display = "flex";
+
+        const mainTracklist = document.getElementById("mainTracklistSection");
+        if (mainTracklist) mainTracklist.style.display = "block";
 
         updatePlaylistBannerMeta(pl);
 
@@ -601,7 +620,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (creatorNameEl) creatorNameEl.textContent = userName;
         if (creatorAvatarEl) creatorAvatarEl.src = userAvatarUrl;
 
-        // Update section heading & filter pill
         if (tracklistHeading) tracklistHeading.textContent = pl.name;
         if (viewFilterPill) {
             viewFilterPill.style.display = "inline-block";
@@ -609,7 +627,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         if (deleteCurrentPlaylistBtn) deleteCurrentPlaylistBtn.style.display = "inline-flex";
 
-        // Big Play Button Handler
         const plBigPlayBtn = document.getElementById("plBigPlayBtn");
         if (plBigPlayBtn) {
             plBigPlayBtn.onclick = () => {
@@ -655,7 +672,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
         }
 
-        // 3. Highlight Sidebar Active Item
         document.querySelectorAll(".sidebar .nav-item").forEach(i => i.classList.remove("active"));
         const activeLi = playlistNavList?.querySelector(`.nav-item[data-playlist-id="${pl.id}"]`);
         if (activeLi) activeLi.classList.add("active");
@@ -722,7 +738,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             showToast(`Deleted playlist "${pl.name}"`, "fa-trash-can");
 
             if (state.activeFilter === "playlist" && state.activePlaylistId === plId) {
-                setActiveFilter("all", "Recently Played");
+                setActiveFilter("all", "Home");
             }
         } catch (err) {
             showToast(err.message || "Could not delete playlist", "fa-triangle-exclamation");
@@ -885,7 +901,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // Open Modal
     plActionAddSongsBtn?.addEventListener("click", () => {
         if (!state.activePlaylistId) return;
         const pl = playlists.find(p => p.id === state.activePlaylistId);
@@ -898,7 +913,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         selectSongsModal?.classList.add("active");
     });
 
-    // Close Modal
     closeSelectSongsModalBtn?.addEventListener("click", () => selectSongsModal?.classList.remove("active"));
     doneSelectSongsBtn?.addEventListener("click", () => selectSongsModal?.classList.remove("active"));
     selectSongsModal?.addEventListener("click", (e) => {
@@ -909,7 +923,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderSelectSongsList(e.target.value);
     });
 
-    // Read the audio length in the browser so it can be stored in MongoDB
     function getAudioDuration(file) {
         return new Promise(resolve => {
             const url = URL.createObjectURL(file);
@@ -1051,6 +1064,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 setActiveFilter("local", "My Private Songs");
             } else {
                 showToast(`Cloud song "${title}" published globally!`, "fa-cloud-arrow-up");
+                renderHomeSections();
                 renderTrackList();
             }
             loadTrack(0, true);
@@ -1064,7 +1078,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // Drag-and-drop file listeners
     window.addEventListener("dragover", (e) => {
         e.preventDefault();
         if (dropOverlay) {
@@ -1173,7 +1186,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             document.getElementById("emptyActionBtn")?.addEventListener("click", () => {
                 if (state.activeFilter === "local") openUploadModal(false);
-                else setActiveFilter("all", "Recently Played");
+                else setActiveFilter("all", "Home");
             });
             return;
         }
@@ -1355,7 +1368,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.isPlaying = true;
         updatePlayPauseIcons();
 
-        // Save "recently played" to MongoDB whenever a song starts playing
         const track = TRACKS[state.currentTrackIndex];
         if (!track || state.recentPlayed[0] === track.id) return;
         state.recentPlayed = [track.id, ...state.recentPlayed.filter(id => id !== track.id)].slice(0, 10);
@@ -1735,21 +1747,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.activeFilter = filterName;
         state.activePlaylistId = null;
 
-        const heroBanner = document.getElementById("heroBanner");
-        const recommendedSection = document.getElementById("recommendedSection");
+        // Clear search box
+        const searchInput = document.getElementById("searchInput");
+        if (searchInput) searchInput.value = "";
+
+        const homeViewContainer = document.getElementById("homeViewContainer");
         const plBanner = document.getElementById("playlistDetailBanner");
         const plActionBar = document.getElementById("playlistActionBar");
+        const mainTracklist = document.getElementById("mainTracklistSection");
 
         if (filterName === "all") {
-            if (heroBanner) heroBanner.style.display = "block";
-            if (recommendedSection) recommendedSection.style.display = "block";
+            if (homeViewContainer) homeViewContainer.style.display = "block";
             if (plBanner) plBanner.style.display = "none";
             if (plActionBar) plActionBar.style.display = "none";
+            if (mainTracklist) mainTracklist.style.display = "none";
         } else {
-            if (heroBanner) heroBanner.style.display = "none";
-            if (recommendedSection) recommendedSection.style.display = "none";
+            if (homeViewContainer) homeViewContainer.style.display = "none";
             if (plBanner) plBanner.style.display = "none";
             if (plActionBar) plActionBar.style.display = "none";
+            if (mainTracklist) mainTracklist.style.display = "block";
         }
 
         if (tracklistHeading) tracklistHeading.textContent = headingText;
@@ -1772,7 +1788,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("navHome")?.addEventListener("click", (e) => {
         e.preventDefault();
-        setActiveFilter("all", "Recently Played");
+        setActiveFilter("all", "Home");
         closeDrawer();
     });
 
@@ -1805,63 +1821,56 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
+    // Hero Home Listeners
     document.getElementById("heroListenNowBtn")?.addEventListener("click", () => {
-        if (TRACKS.length === 0) {
-            showToast("Upload a song first to start listening", "fa-music");
-            return;
+        if (!heroTrack) return showToast("No recommended track found", "fa-circle-info");
+        const idx = TRACKS.findIndex(t => String(t.id) === String(heroTrack.id));
+        if (idx !== -1) {
+            loadTrack(idx, true);
+            showToast("Playing Recommended Track", "fa-play");
         }
-        const targetIdx = TRACKS.length > 1 ? 1 : 0;
-        loadTrack(targetIdx, true);
-        showToast("Playing Featured Release", "fa-play");
     });
 
     document.getElementById("heroQueueBtn")?.addEventListener("click", () => {
-        if (TRACKS.length === 0) {
-            showToast("No tracks available to queue", "fa-circle-info");
-            return;
-        }
-        const featuredTrack = TRACKS[1] || TRACKS[0];
-        if (featuredTrack && !state.queue.includes(featuredTrack.id)) {
-            state.queue.push(featuredTrack.id);
+        if (!heroTrack) return showToast("No recommended track found", "fa-circle-info");
+        if (!state.queue.includes(heroTrack.id)) {
+            state.queue.push(heroTrack.id);
             renderQueue();
-            showToast(`Added "${featuredTrack.title}" to Queue`, "fa-list-check");
+            showToast(`Added "${heroTrack.title}" to Queue`, "fa-list-check");
         } else {
             showToast("Track is already in queue", "fa-info");
         }
     });
 
-    const cardsGrid = document.getElementById("cardsGrid");
-    if (cardsGrid) {
-        cardsGrid.innerHTML = CARDS.map((card, i) => `
-            <div class="music-card" data-card-index="${i}">
-                <div class="card-thumb">
-                    <img src="${escapeHtml(card.cover)}" alt="${escapeHtml(card.title)}">
-                    <button class="play-float-btn" title="Play"><i class="fa-solid fa-play"></i></button>
-                </div>
-                <h4 class="card-name">${escapeHtml(card.title)}</h4>
-                <p class="card-desc">${escapeHtml(card.desc)}</p>
-            </div>
-        `).join("");
+    // Handle Search Bar Interactions
+    document.getElementById("searchInput")?.addEventListener("input", (e) => {
+        const q = e.target.value.trim();
+        const homeViewContainer = document.getElementById("homeViewContainer");
+        const mainTracklist = document.getElementById("mainTracklistSection");
+        const tracklistHeading = document.getElementById("tracklistHeading");
+        const viewFilterPill = document.getElementById("viewFilterPill");
 
-        cardsGrid.querySelectorAll(".music-card").forEach(card => {
-            card.addEventListener("click", () => {
-                if (TRACKS.length === 0) {
-                    showToast("No songs uploaded yet", "fa-music");
-                    return;
+        if (state.activeFilter === "all") {
+            if (q.length > 0) {
+                // If searching from Home, override UI to show the search results list
+                if (homeViewContainer) homeViewContainer.style.display = "none";
+                if (mainTracklist) mainTracklist.style.display = "block";
+                
+                if (tracklistHeading) tracklistHeading.textContent = "Search Results";
+                if (viewFilterPill) {
+                    viewFilterPill.style.display = "inline-block";
+                    viewFilterPill.textContent = "Search";
                 }
-                const cIdx = parseInt(card.dataset.cardIndex, 10);
-                const targetTrackIndex = CARDS[cIdx].trackIndex % TRACKS.length;
-                loadTrack(targetTrackIndex, true);
-            });
-        });
-    }
-
-    document.getElementById("viewAllCardsLink")?.addEventListener("click", (e) => {
-        e.preventDefault();
-        setActiveFilter("all", "Recommended Releases");
-    });
-
-    document.getElementById("searchInput")?.addEventListener("input", () => {
+            } else {
+                // Return to normal home layout if search is cleared
+                if (homeViewContainer) homeViewContainer.style.display = "block";
+                if (mainTracklist) mainTracklist.style.display = "none";
+                
+                if (tracklistHeading) tracklistHeading.textContent = "Home";
+                if (viewFilterPill) viewFilterPill.style.display = "none";
+            }
+        }
+        
         renderTrackList();
     });
 
@@ -1929,7 +1938,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     renderSidebarPlaylists();
-    renderTrackList();
+    setActiveFilter("all", "Home");
     if (TRACKS.length > 0) {
         loadTrack(0, false);
     }
