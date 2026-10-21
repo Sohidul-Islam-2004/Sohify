@@ -10,7 +10,11 @@ require("dotenv").config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve static files whether server.js is inside a subfolder or project root
 app.use(express.static(path.join(__dirname, "..", "public")));
+app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(__dirname));
 
 const { userSchema, songSchema, playlistSchema } = require("./schema");
 const User = mongoose.model("User", userSchema);
@@ -28,13 +32,21 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSessi
 /* ============================================================
    FILE UPLOAD (memory -> Supabase Storage)
    ============================================================ */
+const AUDIO_EXT_REGEX = /\.(mp3|wav|ogg|m4a|flac|aac|webm)$/i;
+const IMAGE_EXT_REGEX = /\.(jpe?g|png|webp|gif|avif|svg)$/i;
+
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per file (supports WAV/FLAC)
     fileFilter: (req, file, cb) => {
-        const ok =
-            (file.fieldname === "audio" && file.mimetype.startsWith("audio/")) ||
-            ((file.fieldname === "cover" || file.fieldname === "avatar") && file.mimetype.startsWith("image/"));
+        const isAudio =
+            file.fieldname === "audio" &&
+            (file.mimetype.startsWith("audio/") || AUDIO_EXT_REGEX.test(file.originalname));
+        const isImage =
+            (file.fieldname === "cover" || file.fieldname === "avatar") &&
+            (file.mimetype.startsWith("image/") || IMAGE_EXT_REGEX.test(file.originalname));
+
+        const ok = isAudio || isImage;
         cb(ok ? null : new Error(`Invalid file type for "${file.fieldname}".`), ok);
     }
 });
@@ -46,7 +58,7 @@ async function uploadToSupabase(folder, file) {
     const filePath = `${folder}/${Date.now()}_${sanitize(file.originalname)}`;
     const { error } = await supabase.storage
         .from(SUPABASE_BUCKET)
-        .upload(filePath, file.buffer, { contentType: file.mimetype });
+        .upload(filePath, file.buffer, { contentType: file.mimetype || "application/octet-stream" });
     if (error) throw new Error(`Supabase upload failed: ${error.message}`);
     return supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(filePath).data.publicUrl;
 }
@@ -86,17 +98,29 @@ app.post("/api/users/register", async (req, res) => {
         const { fullName, email, password, confirmPassword } = req.body;
         if (!fullName || !email || !password) return res.status(400).json({ message: "All fields are required." });
         if (password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters." });
-        if (password !== confirmPassword) return res.status(400).json({ message: "Passwords do not match." });
+        if (confirmPassword !== undefined && password !== confirmPassword) {
+            return res.status(400).json({ message: "Passwords do not match." });
+        }
 
-        const existing = await User.findOne({ email: email.toLowerCase() });
+        const existing = await User.findOne({ email: email.toLowerCase().trim() });
         if (existing) return res.status(409).json({ message: "Email already exists." });
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await User.create({ name: fullName, email: email.toLowerCase(), password: hashedPassword });
+        const user = await User.create({
+            name: fullName.trim(),
+            email: email.toLowerCase().trim(),
+            password: hashedPassword
+        });
 
         res.status(201).json({
             success: true,
-            data: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin }
+            data: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                isAdmin: user.isAdmin,
+                avatarUrl: user.avatarUrl || ""
+            }
         });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
@@ -108,7 +132,7 @@ app.post("/api/users/login", async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ message: "Email and password are required." });
 
-        const user = await User.findOne({ email: email.toLowerCase() });
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
         if (!user) return res.status(404).json({ message: "User not found." });
 
         const isMatch = await bcrypt.compare(password, user.password);
@@ -116,7 +140,13 @@ app.post("/api/users/login", async (req, res) => {
 
         res.json({
             success: true,
-            data: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, avatarUrl: user.avatarUrl }
+            data: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                isAdmin: user.isAdmin,
+                avatarUrl: user.avatarUrl || ""
+            }
         });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
@@ -132,7 +162,7 @@ app.get("/api/songs", async (req, res) => {
     try {
         const { userId } = req.query;
         const filter = isId(userId)
-            ? { $or: [{ isPrivate: false }, { isPrivate: { $exists: false } }, { uploadedBy: userId }] }
+            ? { $or: [{ isPrivate: false }, { isPrivate: {$exists: false } }, { uploadedBy: userId }] }
             : { isPrivate: { $ne: true } };
 
         const songs = await Song.find(filter).sort({ createdAt: -1 }).lean();
@@ -155,7 +185,7 @@ app.post(
             const user = await getUserOr404(userId, res);
             if (!user) return;
 
-            const priv = isPrivate === "true";
+            const priv = isPrivate === "true" || isPrivate === true;
             if (!priv && !user.isAdmin) {
                 return res.status(403).json({ message: "Only admins can publish to the cloud catalog." });
             }
@@ -164,15 +194,20 @@ app.post(
             const coverUrl = req.files.cover ? await uploadToSupabase("covers", req.files.cover[0]) : "";
 
             const song = await Song.create({
-                title,
-                artist,
-                album: album || "",
+                title: title.trim(),
+                artist: artist.trim(),
+                album: (album || "").trim(),
                 duration: duration || "--:--",
                 audioUrl,
                 coverUrl,
                 uploadedBy: user._id,
                 isPrivate: priv
             });
+
+            if (priv) {
+                user.localSong.push(song._id);
+                await user.save();
+            }
 
             res.status(201).json(song);
         } catch (err) {
@@ -212,6 +247,7 @@ app.get("/api/users/:userId/library", async (req, res) => {
             avatarUrl: user.avatarUrl || "",
             likedSongs: (user.likedSongs || []).map(String),
             recentSongs: (user.recentSongs || []).map(String),
+            localSongs: (user.localSong || []).map(String),
             playlists: (user.playlists || []).map((p) => ({
                 _id: String(p._id),
                 name: p.name,
@@ -334,7 +370,7 @@ app.use((req, res) => res.status(404).json({ message: "Route not found" }));
 // Multer / unexpected errors -> JSON instead of an HTML error page
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-        return res.status(413).json({ message: "File too large (max 10 MB)." });
+        return res.status(413).json({ message: "File too large (max 50 MB)." });
     }
     res.status(400).json({ message: err.message || "Request failed." });
 });

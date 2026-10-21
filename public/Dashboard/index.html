@@ -25,7 +25,7 @@
         <div class="drop-card">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             <h3>Drop your local audio file here</h3>
-            <p>Supports MP3, WAV, OGG, M4A, FLAC · Saved Locally</p>
+            <p>Supports MP3, WAV, OGG, M4A, FLAC · Saved Privately</p>
         </div>
     </div>
 
@@ -36,7 +36,7 @@
         <!-- 1. SIDEBAR NAVIGATION -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <a href="index.html" class="brand-logo">
+                <a href="dash.html" class="brand-logo">
                     <!-- Spinning vinyl disc logo -->
                     <i class="fa-solid fa-compact-disc rotating-logo"></i>
                     <h2>SoundPulse</h2>
@@ -46,9 +46,9 @@
                 </button>
             </div>
 
-            <!-- Import Local Song Button: Available for ALL users (IndexedDB) -->
+            <!-- Import Local/Private Song Button: Available for ALL logged-in users -->
             <div class="sidebar-action-box">
-                <button class="btn btn-upload-sidebar" id="sidebarUploadBtn" title="Import audio file stored locally on your device">
+                <button class="btn btn-upload-sidebar" id="sidebarUploadBtn" title="Upload a private audio file only visible to you">
                     <i class="fa-solid fa-circle-plus"></i>
                     <span>Import Local Song</span>
                 </button>
@@ -117,7 +117,7 @@
                                 <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop"
                                     alt="User Profile" class="user-avatar" id="userAvatar">
                             </div>
-                            <span class="user-name" id="displayUserName">Alex Rivera</span>
+                            <span class="user-name" id="displayUserName">Guest Listener</span>
                             <i class="fa-solid fa-chevron-down profile-dropdown-arrow"></i>
                         </div>
 
@@ -130,9 +130,9 @@
                                     <div class="avatar-change-overlay"><i class="fa-solid fa-camera"></i></div>
                                 </div>
                                 <div class="user-card-text">
-                                    <h4 class="user-card-name" id="cardUserName">Alex Rivera</h4>
-                                    <p class="user-card-email" id="cardUserEmail">alex.rivera@example.com</p>
-                                    <span class="role-badge" id="cardUserRole">Regular Listener</span>
+                                    <h4 class="user-card-name" id="cardUserName">Guest Listener</h4>
+                                    <p class="user-card-email" id="cardUserEmail">Not signed in</p>
+                                    <span class="role-badge" id="cardUserRole">Guest</span>
                                 </div>
                             </div>
 
@@ -199,7 +199,7 @@
                         <div class="playlist-detail-meta">
                             <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop" 
                                  class="pl-meta-avatar" id="plCreatorAvatar" alt="Creator">
-                            <span class="pl-meta-author" id="plCreatorName">Alex Rivera</span>
+                            <span class="pl-meta-author" id="plCreatorName">Guest Listener</span>
                             <span class="pl-meta-dot">•</span>
                             <span id="plMetaSongCount">0 songs</span>
                             <span class="pl-meta-dot">•</span>
@@ -214,7 +214,7 @@
                         <i class="fa-solid fa-play"></i>
                     </button>
 
-                    <!-- NEW: ADD SONGS BUTTON (Placed right after big play button) -->
+                    <!-- ADD SONGS BUTTON -->
                     <button class="pl-add-songs-btn" id="plActionAddSongsBtn" title="Add Songs to Playlist">
                         <i class="fa-solid fa-circle-plus"></i>
                         <span>Add Songs</span>
@@ -303,7 +303,7 @@
         </div>
     </div>
 
-    <!-- 4. UPLOAD MODAL (Switches between Cloud Upload for Admin and IndexedDB for Local Users) -->
+    <!-- 4. UPLOAD MODAL -->
     <div class="modal-overlay" id="uploadSongModal">
         <div class="modal-box modal-box-large">
             <div class="modal-header">
@@ -358,7 +358,7 @@
             <div class="modal-footer">
                 <button class="btn btn-glass" id="cancelUploadBtn">Cancel</button>
                 <button class="btn btn-green" id="confirmUploadBtn">
-                    <i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">Save Locally & Play</span>
+                    <i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">Upload Privately & Play</span>
                 </button>
             </div>
         </div>
@@ -441,7 +441,7 @@
                 alt="Cover" class="meta-cover clickable-cover" id="currentCover" title="Click to enlarge artwork">
             <div class="meta-details">
                 <div class="meta-title-row">
-                    <span class="meta-title clickable-title" id="currentTitle" title="Click to enlarge album cover">Starboy</span>
+                    <span class="meta-title clickable-title" id="currentTitle" title="Click to enlarge album cover">No Track Selected</span>
                     <div class="sound-wave" id="soundWave" title="Sound Bar Visualizer">
                         <span class="sound-bar b1"></span>
                         <span class="sound-bar b2"></span>
@@ -449,7 +449,7 @@
                         <span class="sound-bar b4"></span>
                     </div>
                 </div>
-                <span class="meta-artist" id="currentArtist">The Weeknd, Daft Punk</span>
+                <span class="meta-artist" id="currentArtist">Select or upload a track</span>
             </div>
             <button class="like-btn" id="playerLikeBtn" style="margin-left: 8px;" title="Add to favorites">
                 <i class="fa-regular fa-heart"></i>
@@ -507,8 +507,8 @@
         <div>
             <div class="sheet-meta-row">
                 <div>
-                    <h2 class="sheet-song-title" id="sheetTitle">Starboy</h2>
-                    <p class="sheet-artist-name" id="sheetArtist">The Weeknd, Daft Punk</p>
+                    <h2 class="sheet-song-title" id="sheetTitle">No Track Selected</h2>
+                    <p class="sheet-artist-name" id="sheetArtist">Select or upload a track</p>
                 </div>
                 <div class="sheet-meta-actions">
                     <div class="sound-wave" id="sheetSoundWave">

@@ -722,7 +722,7 @@ body {
    ============================================================ */
 .track-list-header {
   display: grid;
-  grid-template-columns: 32px 50px 2fr 1.2fr 70px 72px;
+  grid-template-columns: 32px 50px 2fr 1.2fr 70px 108px;
   align-items: center;
   padding: 8px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -897,9 +897,20 @@ body {
   gap: 8px; width: 45%; max-width: 580px;
 }
 .control-btns { display: flex; align-items: center; gap: 20px; }
-.ctrl-btn { background: transparent; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; }
-.ctrl-btn:hover { color: var(--text-main); }
-.ctrl-btn.active { color: var(--accent-green) !important; }
+.ctrl-btn, .sheet-ctrl-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+}
+.sheet-ctrl-btn { font-size: 20px; }
+.ctrl-btn:hover, .sheet-ctrl-btn:hover { color: var(--text-main); }
+.ctrl-btn.active, .sheet-ctrl-btn.active { color: var(--accent-green) !important; }
 
 .btn-play-pause {
   width: 38px; height: 38px; border-radius: 50%;
@@ -1045,6 +1056,7 @@ body {
 }
 .sheet-art-container img { width: 100%; height: 100%; object-fit: cover; }
 .sheet-meta-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.sheet-meta-actions { display: flex; align-items: center; gap: 14px; }
 .sheet-song-title { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
 .sheet-artist-name { font-size: 14px; color: var(--text-muted); }
 .sheet-scrub-container { margin-bottom: 28px; }
@@ -1053,6 +1065,7 @@ body {
 .sheet-play-pause-btn {
   width: 64px; height: 64px; border-radius: 50%; background-color: var(--accent-green);
   color: #000; font-size: 24px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
 }
 .sheet-volume-row { display: flex; align-items: center; gap: 16px; padding: 0 10px; }
 
@@ -1209,7 +1222,7 @@ body {
 }
 
 /* ============================================================
-   15. PLAYLIST "ADD SONGS" BUTTON & MODAL (NEW)
+   15. PLAYLIST "ADD SONGS" BUTTON & MODAL
    ============================================================ */
 .pl-add-songs-btn {
   display: inline-flex;
