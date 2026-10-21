@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
         avatarUrl: { type: String, default: "" },                 // Supabase URL
         likedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }],
         recentSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }],
+        localSong: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }],
         playlists: [{ type: mongoose.Schema.Types.ObjectId, ref: "Playlist" }]
     },
     { timestamps: true }
@@ -39,7 +40,7 @@ const songSchema = new mongoose.Schema(
         audioUrl: { type: String, required: true },               // Supabase URL
         coverUrl: { type: String, default: "" },                  // Supabase URL
         uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        isPrivate: { type: Boolean, default: false }              // true = visible only to uploadedBy
+        
     },
     { timestamps: true }
 );
