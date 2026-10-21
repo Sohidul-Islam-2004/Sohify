@@ -1,19 +1,8 @@
 // ==========================================================================
-// 1. CONFIGURATION: SUPABASE & BACKEND API
+// 1. CONFIGURATION: BACKEND API
 // ==========================================================================
-// Insert your Supabase Project credentials (from Supabase Dashboard -> Project Settings -> API)
-const SUPABASE_URL = "https://your-project-id.supabase.co";
-const SUPABASE_ANON_KEY = "your-anon-key";
-
-// Initialize Supabase Client for Admin Cloud Storage
-const supabaseClient = (window.supabase && SUPABASE_URL !== "https://your-project-id.supabase.co")
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    : null;
-
 // Backend API Base URL (Matches your server on port 5000)
-const API_BASE_URL = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1")
-    ? "http://localhost:5000/api"
-    : "/api";
+const API_BASE_URL = "/api";
 
 // ==========================================================================
 // 2. INDEXEDDB LOCAL AUDIO STORAGE (Private to this device/user)
@@ -674,7 +663,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("plDetailTitle") && (document.getElementById("plDetailTitle").textContent = pl.name);
         document.getElementById("plMetaSongCount") && (document.getElementById("plMetaSongCount").textContent = `${plTracks.length} song${plTracks.length === 1 ? '' : 's'}`);
         document.getElementById("plMetaDuration") && (document.getElementById("plMetaDuration").textContent = `${mins} min ${secs} sec`);
-        
+
         const plCoverImg = document.getElementById("plDetailCover");
         if (plCoverImg) {
             plCoverImg.src = plTracks.length > 0 ? plTracks[0].cover : DEFAULT_COVER;
@@ -981,7 +970,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.isCloudUploadMode = isCloud;
 
         if (isCloud) {
-            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Admin Cloud Upload (Supabase + MongoDB)`;
+            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Admin Cloud Upload (Server + MongoDB)`;
             if (confirmUploadBtnText) confirmUploadBtnText.textContent = "Upload to Cloud Catalog";
         } else {
             if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Local Song (Private to You)`;
@@ -1070,81 +1059,47 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const title = (uploadSongTitle?.value || "").trim() || currentSelectedAudioFile.name.replace(/\.[^/.]+$/, "");
         const artist = (uploadSongArtist?.value || "").trim() || (state.isCloudUploadMode ? "SoundPulse Artist" : "Local Artist");
-        const album = (uploadSongAlbum?.value || "").trim() || (state.isCloudUploadMode ? "Cloud Single" : "Local Storage");
+
 
         confirmUploadBtn.disabled = true;
         confirmUploadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
 
         try {
-            // ADMIN CLOUD UPLOAD -> SUPABASE + MONGODB
+            // ADMIN CLOUD UPLOAD -> BACKEND (SERVER + MONGODB + CLOUD LIST)
             if (state.isCloudUploadMode) {
-                if (!supabaseClient) {
-                    throw new Error("Supabase is not configured. Please set your SUPABASE_URL and SUPABASE_ANON_KEY in script.js");
+                showToast("Uploading to server...", "fa-cloud-arrow-up");
+
+                const formData = new FormData();
+                formData.append("audio", currentSelectedAudioFile);
+                if (currentSelectedCoverFile) formData.append("cover", currentSelectedCoverFile);
+                formData.append("title", title);
+                formData.append("artist", artist);
+
+
+                formData.append("userId", currentUserId);
+                console.log(formData);
+                const res = await fetch(`${API_BASE_URL}/songs`, {
+                    method: "POST",
+                    body: formData, // let browser set Content-Type (multipart) + boundary
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || "Server upload failed");
                 }
 
-                showToast("Uploading audio to Supabase...", "fa-cloud-arrow-up");
-
-                const timeStamp = Date.now();
-                const audioExt = currentSelectedAudioFile.name.split('.').pop();
-                const audioFilePath = `songs/${timeStamp}_${title.replace(/\s+/g, '_')}.${audioExt}`;
-
-                const { error: audioErr } = await supabaseClient.storage
-                    .from("songs")
-                    .upload(audioFilePath, currentSelectedAudioFile, { cacheControl: "3600", upsert: true });
-
-                if (audioErr) throw new Error("Supabase Audio Upload Error: " + audioErr.message);
-
-                const { data: audioUrlData } = supabaseClient.storage.from("songs").getPublicUrl(audioFilePath);
-                const publicAudioUrl = audioUrlData.publicUrl;
-
-                let publicCoverUrl = DEFAULT_COVER;
-                if (currentSelectedCoverFile) {
-                    const coverExt = currentSelectedCoverFile.name.split('.').pop();
-                    const coverFilePath = `covers/${timeStamp}_${title.replace(/\s+/g, '_')}.${coverExt}`;
-
-                    const { error: coverErr } = await supabaseClient.storage
-                        .from("covers")
-                        .upload(coverFilePath, currentSelectedCoverFile, { cacheControl: "3600", upsert: true });
-
-                    if (!coverErr) {
-                        const { data: coverUrlData } = supabaseClient.storage.from("covers").getPublicUrl(coverFilePath);
-                        publicCoverUrl = coverUrlData.publicUrl;
-                    }
-                }
-
-                showToast("Saving song metadata to MongoDB...", "fa-database");
-                const mongoPayload = {
-                    title: title,
-                    artist: artist,
-                    album: album,
-                    duration: "3:40",
-                    audioUrl: publicAudioUrl,
-                    coverUrl: publicCoverUrl,
-                    userId: currentUserId
-                };
-
-                let savedMongoSong = null;
-                try {
-                    const res = await fetch(`${API_BASE_URL}/songs`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(mongoPayload)
-                    });
-                    if (res.ok) savedMongoSong = await res.json();
-                } catch (apiErr) {
-                    console.warn("MongoDB API offline; added directly to active session:", apiErr);
-                }
+                const savedSong = await res.json();
 
                 const newCloudTrack = {
-                    id: (savedMongoSong && savedMongoSong._id) ? savedMongoSong._id : "cloud_" + Date.now(),
-                    title: title,
-                    artist: artist,
-                    album: album,
-                    duration: "3:40",
-                    cover: publicCoverUrl,
-                    src: publicAudioUrl,
+                    id: savedSong._id,
+                    title: savedSong.title,
+                    artist: savedSong.artist,
+                    album: savedSong.album || "Cloud Catalog",
+                    duration: savedSong.duration || "0:00",
+                    cover: savedSong.coverUrl || DEFAULT_COVER,
+                    src: savedSong.audioUrl,
                     liked: false,
-                    isLocal: false
+                    isLocal: false,
                 };
 
                 TRACKS.unshift(newCloudTrack);
@@ -1152,7 +1107,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 renderTrackList();
                 loadTrack(0, true);
 
-            // REGULAR USER LOCAL IMPORT -> INDEXEDDB (Private to user)
+                // REGULAR USER LOCAL IMPORT -> INDEXEDDB (Private to user)
             } else {
                 const trackId = "local_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
                 const objectUrl = URL.createObjectURL(currentSelectedAudioFile);
