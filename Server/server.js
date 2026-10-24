@@ -5,7 +5,7 @@ const bcrypt = require("bcryptjs");
 const cors = require("cors");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
-require("dotenv").config();
+require("dotenv").config({ path: __dirname + "/.env" });
 
 const app = express();
 app.use(cors());
@@ -37,7 +37,7 @@ const IMAGE_EXT_REGEX = /\.(jpe?g|png|webp|gif|avif|svg)$/i;
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per file (supports WAV/FLAC)
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per file
     fileFilter: (req, file, cb) => {
         const isAudio =
             file.fieldname === "audio" &&
@@ -53,7 +53,6 @@ const upload = multer({
 
 const sanitize = (name) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-/** Uploads one multer file to Supabase and returns its public URL. */
 async function uploadToSupabase(folder, file) {
     const filePath = `${folder}/${Date.now()}_${sanitize(file.originalname)}`;
     const { error } = await supabase.storage
@@ -76,7 +75,6 @@ mongoose
    ============================================================ */
 const isId = (id) => mongoose.isValidObjectId(id);
 
-/** Loads a user or sends the right error response. Returns null if it responded. */
 async function getUserOr404(userId, res) {
     if (!isId(userId)) {
         res.status(400).json({ message: "Invalid user id." });
@@ -114,13 +112,7 @@ app.post("/api/users/register", async (req, res) => {
 
         res.status(201).json({
             success: true,
-            data: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                isAdmin: user.isAdmin,
-                avatarUrl: user.avatarUrl || ""
-            }
+            data: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, avatarUrl: user.avatarUrl || "" }
         });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
@@ -140,13 +132,7 @@ app.post("/api/users/login", async (req, res) => {
 
         res.json({
             success: true,
-            data: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                isAdmin: user.isAdmin,
-                avatarUrl: user.avatarUrl || ""
-            }
+            data: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, avatarUrl: user.avatarUrl || "" }
         });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
@@ -156,13 +142,11 @@ app.post("/api/users/login", async (req, res) => {
 /* ============================================================
    SONGS
    ============================================================ */
-
-// Public songs + (if ?userId=... is given) that user's own private songs
 app.get("/api/songs", async (req, res) => {
     try {
         const { userId } = req.query;
         const filter = isId(userId)
-            ? { $or: [{ isPrivate: false }, { isPrivate: {$exists: false } }, { uploadedBy: userId }] }
+            ? { $or: [{ isPrivate: false }, { isPrivate: { $exists: false } }, { uploadedBy: userId }] }
             : { isPrivate: { $ne: true } };
 
         const songs = await Song.find(filter).sort({ createdAt: -1 }).lean();
@@ -172,7 +156,6 @@ app.get("/api/songs", async (req, res) => {
     }
 });
 
-// Upload: admins -> public catalog, any logged-in user -> private song
 app.post(
     "/api/songs",
     upload.fields([{ name: "audio", maxCount: 1 }, { name: "cover", maxCount: 1 }]),
@@ -217,10 +200,8 @@ app.post(
 );
 
 /* ============================================================
-   USER DATA (AVATAR, LIBRARY, LIKES, RECENTS, PLAYLISTS)
+   USER DATA & PLAYLISTS
    ============================================================ */
-
-// Upload / change profile picture (Supabase + MongoDB)
 app.post("/api/users/:userId/avatar", upload.single("avatar"), async (req, res) => {
     try {
         const user = await getUserOr404(req.params.userId, res);
@@ -235,7 +216,6 @@ app.post("/api/users/:userId/avatar", upload.single("avatar"), async (req, res) 
     }
 });
 
-// Full library: likes, recents, playlists, avatar
 app.get("/api/users/:userId/library", async (req, res) => {
     try {
         if (!isId(req.params.userId)) return res.status(400).json({ message: "Invalid user id." });
@@ -251,6 +231,8 @@ app.get("/api/users/:userId/library", async (req, res) => {
             playlists: (user.playlists || []).map((p) => ({
                 _id: String(p._id),
                 name: p.name,
+                description: p.description,
+                isPrivate: p.isPrivate,
                 coverUrl: p.coverUrl,
                 songs: (p.songs || []).map(String)
             }))
@@ -260,7 +242,6 @@ app.get("/api/users/:userId/library", async (req, res) => {
     }
 });
 
-// Toggle Like
 app.post("/api/users/:userId/like", async (req, res) => {
     try {
         const { songId } = req.body;
@@ -281,7 +262,6 @@ app.post("/api/users/:userId/like", async (req, res) => {
     }
 });
 
-// Add to Recent (newest first, max 10)
 app.post("/api/users/:userId/recent", async (req, res) => {
     try {
         const { songId } = req.body;
@@ -300,7 +280,20 @@ app.post("/api/users/:userId/recent", async (req, res) => {
     }
 });
 
-// Create Playlist
+// GET Shared Playlist (Populates tracks, including private ones)
+app.get("/api/playlists/:playlistId", async (req, res) => {
+    try {
+        if (!isId(req.params.playlistId)) return res.status(400).json({ message: "Invalid id." });
+        const playlist = await Playlist.findById(req.params.playlistId)
+            .populate("songs")
+            .populate("user", "name avatarUrl");
+        if (!playlist) return res.status(404).json({ message: "Playlist not found." });
+        res.json(playlist);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 app.post("/api/users/:userId/playlists", async (req, res) => {
     try {
         const name = (req.body.name || "").trim();
@@ -319,7 +312,6 @@ app.post("/api/users/:userId/playlists", async (req, res) => {
     }
 });
 
-// Delete Playlist (owner only)  ->  DELETE /api/playlists/:id?userId=...
 app.delete("/api/playlists/:playlistId", async (req, res) => {
     try {
         const { playlistId } = req.params;
@@ -338,7 +330,32 @@ app.delete("/api/playlists/:playlistId", async (req, res) => {
     }
 });
 
-// Add/Remove Song in Playlist (owner only)
+app.put("/api/playlists/:playlistId", upload.single("cover"), async (req, res) => {
+    try {
+        const { playlistId } = req.params;
+        const { userId, name, description, isPrivate } = req.body;
+
+        if (!isId(playlistId) || !isId(userId)) return res.status(400).json({ message: "Invalid id." });
+
+        const playlist = await Playlist.findById(playlistId);
+        if (!playlist) return res.status(404).json({ message: "Playlist not found." });
+        if (playlist.user.toString() !== userId) return res.status(403).json({ message: "Not your playlist." });
+
+        if (name) playlist.name = name.trim();
+        if (description !== undefined) playlist.description = description.trim();
+        if (isPrivate !== undefined) playlist.isPrivate = isPrivate === "true" || isPrivate === true;
+
+        if (req.file) {
+            playlist.coverUrl = await uploadToSupabase("covers", req.file);
+        }
+
+        await playlist.save();
+        res.json(playlist);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 app.put("/api/playlists/:playlistId/toggle-song", async (req, res) => {
     try {
         const { songId, userId } = req.body;
@@ -363,11 +380,20 @@ app.put("/api/playlists/:playlistId/toggle-song", async (req, res) => {
 });
 
 /* ============================================================
+   HTML ROUTES (SPA-like navigation for Login, Sign-Up, Dashboard)
+   ============================================================ */
+app.get("/Login", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Login", "index.html")));
+app.get("/Login/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Login", "index.html")));
+app.get("/Sign-Up", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Sign-Up", "index.html")));
+app.get("/Sign-Up/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Sign-Up", "index.html")));
+app.get("/Dashboard", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Dashboard", "index.html")));
+app.get("/Dashboard/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Dashboard", "index.html")));
+
+/* ============================================================
    ERRORS
    ============================================================ */
 app.use((req, res) => res.status(404).json({ message: "Route not found" }));
 
-// Multer / unexpected errors -> JSON instead of an HTML error page
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
         return res.status(413).json({ message: "File too large (max 50 MB)." });

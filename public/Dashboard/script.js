@@ -33,7 +33,6 @@ function escapeHtml(str) {
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", async () => {
 
-    // --- A. Toast Notification Helper --------------------------------------
     const toastContainer = document.getElementById("toastContainer");
     function showToast(message, icon = "fa-circle-check") {
         if (!toastContainer) return;
@@ -49,7 +48,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 2800);
     }
 
-    // --- B. Authentication & User Profile Sync -----------------------------
     const displayUserName = document.getElementById("displayUserName");
     const userAvatar = document.getElementById("userAvatar");
     const authBtn = document.getElementById("authBtn");
@@ -144,7 +142,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     cardLogoutBtn?.addEventListener("click", () => {
         if (!isLoggedIn()) {
-            window.location.href = "login.html";
+            window.location.href = "/Login";
             return;
         }
         localStorage.removeItem("sohify_user");
@@ -155,7 +153,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         sessionStorage.clear();
         showToast("Logged out successfully");
-        setTimeout(() => { window.location.href = "login.html"; }, 500);
+        setTimeout(() => { window.location.href = "/Login"; }, 500);
     });
 
     function updateUserCardStats() {
@@ -220,11 +218,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (localSet.has(t.id)) t.isLocal = true;
             });
             initialRecent = lib.recentSongs || [];
+            
+            // Map Library Playlists, assigning isOwned to true for our own playlists
             playlists = (lib.playlists || []).map(p => ({
                 id: String(p._id),
                 name: p.name,
-                trackIds: (p.songs || []).map(String)
+                description: p.description || "",
+                isPrivate: p.isPrivate !== false,
+                coverUrl: p.coverUrl || "",
+                trackIds: (p.songs || []).map(String),
+                isOwned: true
             }));
+
             if (lib.avatarUrl) {
                 userAvatarUrl = lib.avatarUrl;
                 if (userAvatar) userAvatar.src = userAvatarUrl;
@@ -253,7 +258,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (heroBanner) heroBanner.style.display = "block";
 
-        // 1. Hero Recommended (Randomly picked public track)
         heroTrack = publicTracks[Math.floor(Math.random() * publicTracks.length)];
         if (heroBanner && heroTrack) {
             heroBanner.style.backgroundImage = `linear-gradient(135deg, rgba(20, 20, 25, 0.85) 0%, rgba(79, 70, 229, 0.75) 100%), url('${escapeHtml(heroTrack.cover)}')`;
@@ -263,7 +267,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById("heroDesc").textContent = `Recommended for you: ${heroTrack.artist} • ${heroTrack.album || 'Cloud Catalog'}`;
         }
 
-        // 2. Latest Server Uploads (Top 5 public tracks via DB sort order)
         const latestTracks = publicTracks.slice(0, 5);
         if (latestGrid) {
             latestGrid.innerHTML = latestTracks.map(t => createCardHTML(t)).join("");
@@ -293,10 +296,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
         });
     }
-
-    await fetchSongs();
-    await loadLibrary();
-    renderHomeSections();
 
     // --- F. Audio Player State & References --------------------------------
     const audio = document.getElementById("audioElement");
@@ -449,10 +448,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function updatePlayPauseIcons() {
+        // Change icon to spin if waiting
+        const isWaiting = audio.readyState < 3 && !audio.paused && audio.src;
+
         document.querySelectorAll(".playPauseBtn").forEach(btn => {
             const icon = btn.querySelector("i");
             if (icon) {
-                icon.className = state.isPlaying ? "fa-solid fa-pause" : "fa-solid fa-play";
+                if (isWaiting) {
+                    icon.className = "fa-solid fa-spinner fa-spin";
+                } else {
+                    icon.className = state.isPlaying ? "fa-solid fa-pause" : "fa-solid fa-play";
+                }
             }
         });
 
@@ -461,7 +467,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             const icon = plBigPlayBtn.querySelector("i");
             const isPlayingThisPl = state.isPlaying && state.activeFilter === "playlist";
             if (icon) {
-                icon.className = isPlayingThisPl ? "fa-solid fa-pause" : "fa-solid fa-play";
+                if (isWaiting && isPlayingThisPl) {
+                    icon.className = "fa-solid fa-spinner fa-spin";
+                } else {
+                    icon.className = isPlayingThisPl ? "fa-solid fa-pause" : "fa-solid fa-play";
+                }
             }
         }
 
@@ -550,17 +560,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         const titleEl = document.getElementById("plDetailTitle");
         const countEl = document.getElementById("plMetaSongCount");
         const durEl = document.getElementById("plMetaDuration");
+        const descEl = document.getElementById("plDetailDesc");
         const plCoverImg = document.getElementById("plDetailCover");
 
         if (titleEl) titleEl.textContent = pl.name;
         if (countEl) countEl.textContent = `${plTracks.length} song${plTracks.length === 1 ? "" : "s"}`;
         if (durEl) durEl.textContent = `${mins} min ${secs} sec`;
-        if (plCoverImg) plCoverImg.src = plTracks.length > 0 ? plTracks[0].cover : DEFAULT_COVER;
+        if (descEl) descEl.textContent = pl.description || "Curated songs and local tracks played sequentially in order.";
+        
+        if (plCoverImg) {
+            plCoverImg.src = pl.coverUrl || (plTracks.length > 0 ? plTracks[0].cover : DEFAULT_COVER);
+        }
     }
 
     function renderSidebarPlaylists() {
         if (!playlistNavList) return;
-        playlistNavList.innerHTML = playlists.map(pl => {
+        
+        // Render only playlists created by the active user inside the sidebar
+        const ownedPlaylists = playlists.filter(pl => pl.isOwned !== false);
+
+        playlistNavList.innerHTML = ownedPlaylists.map(pl => {
             const isActive = state.activeFilter === "playlist" && state.activePlaylistId === pl.id;
             const songCount = pl.trackIds ? pl.trackIds.length : 0;
             return `
@@ -614,18 +633,30 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         updatePlaylistBannerMeta(pl);
 
-        const userName = currentUserName || "Guest Listener";
+        const userName = pl.creatorName || currentUserName || "Guest Listener";
         const creatorNameEl = document.getElementById("plCreatorName");
         const creatorAvatarEl = document.getElementById("plCreatorAvatar");
         if (creatorNameEl) creatorNameEl.textContent = userName;
-        if (creatorAvatarEl) creatorAvatarEl.src = userAvatarUrl;
+        if (creatorAvatarEl) creatorAvatarEl.src = pl.creatorAvatar || userAvatarUrl;
 
         if (tracklistHeading) tracklistHeading.textContent = pl.name;
         if (viewFilterPill) {
             viewFilterPill.style.display = "inline-block";
             viewFilterPill.textContent = "Playlist";
         }
-        if (deleteCurrentPlaylistBtn) deleteCurrentPlaylistBtn.style.display = "inline-flex";
+        
+        // Hide edit/add/delete options if it's a shared playlist (not owned by the user)
+        const isOwner = pl.isOwned !== false;
+        const plActionAddSongsBtn = document.getElementById("plActionAddSongsBtn");
+        const plActionEditBtn = document.getElementById("plActionEditBtn");
+        const plActionDeleteBtn = document.getElementById("plActionDeleteBtn");
+        const plActionShareBtn = document.getElementById("plActionShareBtn");
+        
+        if (plActionAddSongsBtn) plActionAddSongsBtn.style.display = isOwner ? "inline-flex" : "none";
+        if (plActionEditBtn) plActionEditBtn.style.display = isOwner ? "inline-flex" : "none";
+        if (plActionDeleteBtn) plActionDeleteBtn.style.display = isOwner ? "inline-flex" : "none";
+        if (deleteCurrentPlaylistBtn) deleteCurrentPlaylistBtn.style.display = isOwner ? "inline-flex" : "none";
+        if (plActionShareBtn) plActionShareBtn.style.display = (isOwner && !pl.isPrivate) || isOwner ? "inline-flex" : "none";
 
         const plBigPlayBtn = document.getElementById("plBigPlayBtn");
         if (plBigPlayBtn) {
@@ -647,7 +678,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
         }
 
-        const plActionDeleteBtn = document.getElementById("plActionDeleteBtn");
         if (plActionDeleteBtn) {
             plActionDeleteBtn.onclick = () => deletePlaylist(pl.id);
         }
@@ -713,7 +743,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         try {
             const pl = await api(`/users/${currentUserId}/playlists`, jsonOpts("POST", { name }));
-            const newPl = { id: String(pl._id), name: pl.name, trackIds: [] };
+            const newPl = { id: String(pl._id), name: pl.name, description: "", isPrivate: true, coverUrl: "", trackIds: [], isOwned: true };
             playlists.push(newPl);
             renderSidebarPlaylists();
             updateUserCardStats();
@@ -753,6 +783,123 @@ document.addEventListener("DOMContentLoaded", async () => {
     deleteCurrentPlaylistBtn?.addEventListener("click", () => {
         if (state.activePlaylistId) deletePlaylist(state.activePlaylistId);
     });
+    
+    document.getElementById("plActionShareBtn")?.addEventListener("click", () => {
+        if (!state.activePlaylistId) return;
+        const link = `${window.location.origin}${window.location.pathname}?playlist=${state.activePlaylistId}`;
+        navigator.clipboard.writeText(link).then(() => {
+            showToast("Playlist link copied to clipboard!", "fa-link");
+        }).catch(() => {
+            showToast("Failed to copy link", "fa-triangle-exclamation");
+        });
+    });
+
+    // --- PLAYLIST EDIT MODAL LOGIC ---
+    const editPlaylistModal = document.getElementById("editPlaylistModal");
+    const plActionEditBtn = document.getElementById("plActionEditBtn");
+    const closeEditPlaylistModalBtn = document.getElementById("closeEditPlaylistModalBtn");
+    const cancelEditPlaylistBtn = document.getElementById("cancelEditPlaylistBtn");
+    const confirmEditPlaylistBtn = document.getElementById("confirmEditPlaylistBtn");
+
+    const editPlaylistCoverBox = document.getElementById("editPlaylistCoverBox");
+    const editPlaylistCoverInput = document.getElementById("editPlaylistCoverInput");
+    const editPlaylistCoverPreview = document.getElementById("editPlaylistCoverPreview");
+    const editPlaylistName = document.getElementById("editPlaylistName");
+    const editPlaylistDesc = document.getElementById("editPlaylistDesc");
+    const editPlaylistPrivate = document.getElementById("editPlaylistPrivate");
+
+    let currentEditPlaylistCoverFile = null;
+
+    function openEditPlaylistModal() {
+        if (!requireLogin("Please log in to edit playlists")) return;
+        if (!state.activePlaylistId) return;
+        
+        const pl = playlists.find(p => p.id === state.activePlaylistId);
+        if (!pl || !editPlaylistModal) return;
+
+        editPlaylistName.value = pl.name || "";
+        editPlaylistDesc.value = pl.description || "";
+        editPlaylistPrivate.checked = pl.isPrivate;
+
+        const plTracks = (pl.trackIds || []).map(tid => TRACKS.find(t => String(t.id) === String(tid))).filter(Boolean);
+        const displayCover = pl.coverUrl || (plTracks.length > 0 ? plTracks[0].cover : DEFAULT_COVER);
+        editPlaylistCoverPreview.src = displayCover;
+
+        currentEditPlaylistCoverFile = null;
+        editPlaylistModal.classList.add("active");
+    }
+
+    function closeEditPlaylistModal() {
+        editPlaylistModal?.classList.remove("active");
+    }
+
+    plActionEditBtn?.addEventListener("click", openEditPlaylistModal);
+    closeEditPlaylistModalBtn?.addEventListener("click", closeEditPlaylistModal);
+    cancelEditPlaylistBtn?.addEventListener("click", closeEditPlaylistModal);
+
+    editPlaylistCoverBox?.addEventListener("click", () => editPlaylistCoverInput?.click());
+
+    editPlaylistCoverInput?.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file || !file.type.startsWith("image/")) return;
+        
+        currentEditPlaylistCoverFile = file;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if (editPlaylistCoverPreview) editPlaylistCoverPreview.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    confirmEditPlaylistBtn?.addEventListener("click", async () => {
+        if (!state.activePlaylistId) return;
+        const pl = playlists.find(p => p.id === state.activePlaylistId);
+        if (!pl) return;
+
+        const name = (editPlaylistName?.value || "").trim();
+        if (!name) {
+            showToast("Playlist Name is required", "fa-triangle-exclamation");
+            return;
+        }
+
+        const description = (editPlaylistDesc?.value || "").trim();
+        const isPrivate = editPlaylistPrivate?.checked;
+
+        confirmEditPlaylistBtn.disabled = true;
+        confirmEditPlaylistBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
+
+        try {
+            const formData = new FormData();
+            formData.append("userId", currentUserId);
+            formData.append("name", name);
+            formData.append("description", description);
+            formData.append("isPrivate", isPrivate);
+            
+            if (currentEditPlaylistCoverFile) {
+                formData.append("cover", currentEditPlaylistCoverFile);
+            }
+
+            const updatedPl = await api(`/playlists/${pl.id}`, { method: "PUT", body: formData });
+            
+            pl.name = updatedPl.name;
+            pl.description = updatedPl.description;
+            pl.isPrivate = updatedPl.isPrivate;
+            if (updatedPl.coverUrl) pl.coverUrl = updatedPl.coverUrl;
+
+            updatePlaylistBannerMeta(pl);
+            renderSidebarPlaylists();
+            
+            showToast("Playlist updated successfully!", "fa-circle-check");
+            closeEditPlaylistModal();
+        } catch (error) {
+            console.error(error);
+            showToast(error.message || "Failed to update playlist", "fa-triangle-exclamation");
+        } finally {
+            confirmEditPlaylistBtn.disabled = false;
+            confirmEditPlaylistBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Changes`;
+        }
+    });
+
 
     function openAddToPlaylistModal(trackId) {
         if (!requireLogin("Please log in to manage playlists")) return;
@@ -1111,7 +1258,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    [createPlaylistModal, addToPlaylistModal, uploadSongModal].forEach(m => {
+    [createPlaylistModal, addToPlaylistModal, uploadSongModal, editPlaylistModal].forEach(m => {
         m?.addEventListener("click", (e) => {
             if (e.target === m) m.classList.remove("active");
         });
@@ -1294,6 +1441,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (curr) toggleFavorite(curr.id);
     });
 
+    // --- MediaSession API Binding ---
+    function bindMediaSessionControls(track) {
+        if ('mediaSession' in navigator && track) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: track.title,
+                artist: track.artist,
+                album: track.album || "SoundPulse",
+                artwork: [
+                    { src: track.cover, sizes: '96x96',   type: 'image/jpeg' },
+                    { src: track.cover, sizes: '128x128', type: 'image/jpeg' },
+                    { src: track.cover, sizes: '192x192', type: 'image/jpeg' },
+                    { src: track.cover, sizes: '256x256', type: 'image/jpeg' },
+                    { src: track.cover, sizes: '384x384', type: 'image/jpeg' },
+                    { src: track.cover, sizes: '512x512', type: 'image/jpeg' }
+                ]
+            });
+            navigator.mediaSession.setActionHandler('play', togglePlayPause);
+            navigator.mediaSession.setActionHandler('pause', togglePlayPause);
+            navigator.mediaSession.setActionHandler('previoustrack', playPrevious);
+            navigator.mediaSession.setActionHandler('nexttrack', playNext);
+        }
+    }
+
     // --- P. Audio Load & Play ----------------------------------------------
     function loadTrack(index, autoPlay = true) {
         if (TRACKS.length === 0) {
@@ -1322,6 +1492,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             expandedCoverTitle.textContent = track.title;
             expandedCoverArtist.textContent = track.artist;
         }
+
+        bindMediaSessionControls(track);
 
         syncGlobalLikeState();
         renderTrackList();
@@ -1364,9 +1536,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // --- Q. Audio Playback Event Listeners ---------------------------------
+    
+    let progressRafId = null;
+    
+    function smoothProgressUpdate() {
+        if (audio.duration && isFinite(audio.duration) && !audio.paused) {
+            const pct = (audio.currentTime / audio.duration) * 100;
+            if (progressFill) progressFill.style.width = pct + "%";
+            if (sheetProgressFill) sheetProgressFill.style.width = pct + "%";
+            if (mobileTopProgressFill) mobileTopProgressFill.style.width = pct + "%";
+            if (expandedProgressFill) expandedProgressFill.style.width = pct + "%";
+
+            const cur = formatTime(audio.currentTime);
+            if (currentTimeLbl && currentTimeLbl.textContent !== cur) currentTimeLbl.textContent = cur;
+            if (sheetCurrentTime && sheetCurrentTime.textContent !== cur) sheetCurrentTime.textContent = cur;
+            if (expandedCurrentTime && expandedCurrentTime.textContent !== cur) expandedCurrentTime.textContent = cur;
+
+            progressRafId = requestAnimationFrame(smoothProgressUpdate);
+        }
+    }
+
+    // Audio Engine Buffering and Performance Events
+    audio.addEventListener('waiting', updatePlayPauseIcons);
+    audio.addEventListener('playing', updatePlayPauseIcons);
+    audio.addEventListener('canplay', updatePlayPauseIcons);
+
     audio.addEventListener("play", () => {
         state.isPlaying = true;
         updatePlayPauseIcons();
+
+        if (progressRafId) cancelAnimationFrame(progressRafId);
+        progressRafId = requestAnimationFrame(smoothProgressUpdate);
 
         const track = TRACKS[state.currentTrackIndex];
         if (!track || state.recentPlayed[0] === track.id) return;
@@ -1380,6 +1580,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     audio.addEventListener("pause", () => {
         state.isPlaying = false;
         updatePlayPauseIcons();
+        if (progressRafId) cancelAnimationFrame(progressRafId);
     });
 
     audio.addEventListener("loadedmetadata", () => {
@@ -1396,22 +1597,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     audio.addEventListener("timeupdate", () => {
-        if (!audio.duration || !isFinite(audio.duration)) return;
-        const pct = (audio.currentTime / audio.duration) * 100;
-        if (progressFill) progressFill.style.width = pct + "%";
-        if (sheetProgressFill) sheetProgressFill.style.width = pct + "%";
-        if (mobileTopProgressFill) mobileTopProgressFill.style.width = pct + "%";
-        if (expandedProgressFill) expandedProgressFill.style.width = pct + "%";
-
-        const cur = formatTime(audio.currentTime);
-        if (currentTimeLbl) currentTimeLbl.textContent = cur;
-        if (sheetCurrentTime) sheetCurrentTime.textContent = cur;
-        if (expandedCurrentTime) expandedCurrentTime.textContent = cur;
+        if (audio.paused) {
+            if (!audio.duration || !isFinite(audio.duration)) return;
+            const pct = (audio.currentTime / audio.duration) * 100;
+            if (progressFill) progressFill.style.width = pct + "%";
+            if (sheetProgressFill) sheetProgressFill.style.width = pct + "%";
+            if (mobileTopProgressFill) mobileTopProgressFill.style.width = pct + "%";
+            if (expandedProgressFill) expandedProgressFill.style.width = pct + "%";
+            const cur = formatTime(audio.currentTime);
+            if (currentTimeLbl) currentTimeLbl.textContent = cur;
+            if (sheetCurrentTime) sheetCurrentTime.textContent = cur;
+            if (expandedCurrentTime) expandedCurrentTime.textContent = cur;
+        }
     });
 
-    audio.addEventListener("ended", () => {
-        handleTrackEnd();
-    });
+    audio.addEventListener("ended", handleTrackEnd);
 
     function handleTrackEnd() {
         if (state.repeatMode === "one") {
@@ -1747,7 +1947,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.activeFilter = filterName;
         state.activePlaylistId = null;
 
-        // Clear search box
         const searchInput = document.getElementById("searchInput");
         if (searchInput) searchInput.value = "";
 
@@ -1852,7 +2051,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (state.activeFilter === "all") {
             if (q.length > 0) {
-                // If searching from Home, override UI to show the search results list
                 if (homeViewContainer) homeViewContainer.style.display = "none";
                 if (mainTracklist) mainTracklist.style.display = "block";
                 
@@ -1862,7 +2060,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                     viewFilterPill.textContent = "Search";
                 }
             } else {
-                // Return to normal home layout if search is cleared
                 if (homeViewContainer) homeViewContainer.style.display = "block";
                 if (mainTracklist) mainTracklist.style.display = "none";
                 
@@ -1908,6 +2105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             closeEnlargedCover();
             closeUploadModal();
             closeCreatePlaylistModal();
+            closeEditPlaylistModal();
             addToPlaylistModal?.classList.remove("active");
             selectSongsModal?.classList.remove("active");
             queuePanel?.classList.remove("open");
@@ -1937,11 +2135,66 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
+    // --- INITIALIZATION: Load data from server ---
+    await fetchSongs();
+    await loadLibrary();
+    renderHomeSections();
     renderSidebarPlaylists();
-    setActiveFilter("all", "Home");
-    if (TRACKS.length > 0) {
-        loadTrack(0, false);
+
+    // --- DEEP LINK SHARED PLAYLIST ROUTING ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedPlId = urlParams.get('playlist');
+    
+    if (sharedPlId) {
+        try {
+            const data = await api(`/playlists/${sharedPlId}`);
+            
+            // Map the populated songs and push to TRACKS if they don't exist
+            const mappedTracks = data.songs.map(mapSong);
+            mappedTracks.forEach(mt => {
+                if (!TRACKS.find(t => String(t.id) === String(mt.id))) {
+                    TRACKS.push(mt);
+                }
+            });
+            
+            const sharedPl = {
+                id: String(data._id),
+                name: data.name,
+                description: data.description || "",
+                isPrivate: data.isPrivate !== false,
+                coverUrl: data.coverUrl || "",
+                trackIds: mappedTracks.map(t => String(t.id)),
+                isOwned: isLoggedIn() && currentUserId === String(data.user._id),
+                creatorName: data.user.name,
+                creatorAvatar: data.user.avatarUrl
+            };
+            
+            if (!playlists.find(p => p.id === sharedPl.id)) {
+                playlists.push(sharedPl);
+            }
+            selectPlaylist(sharedPl.id, false);
+            
+            // Rewrite URL seamlessly to clean it up
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+        } catch (err) {
+            showToast("Shared playlist not found", "fa-triangle-exclamation");
+            setActiveFilter("all", "Home");
+        }
+    } else {
+        setActiveFilter("all", "Home");
     }
+
+    if (TRACKS.length > 0 && !sharedPlId) {
+        loadTrack(0, false);
+    } else if (sharedPlId) {
+        const currentPl = playlists.find(p => p.id === sharedPlId);
+        if (currentPl && currentPl.trackIds && currentPl.trackIds.length > 0) {
+             const firstGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(currentPl.trackIds[0]));
+             if (firstGlobalIdx !== -1) loadTrack(firstGlobalIdx, false);
+        }
+    }
+    
     syncGlobalLikeState();
     updateBadgeCounts();
 });

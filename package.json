@@ -1,4 +1,12 @@
 {
+  "name": "sohify",
+  "version": "1.0.0",
+  "description": "SoundPulse · Sohify Music Player",
+  "main": "Server/server.js",
+  "scripts": {
+    "start": "node Server/server.js",
+    "dev": "nodemon Server/server.js"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
     "bcrypt": "^6.0.0",

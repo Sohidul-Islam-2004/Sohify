@@ -175,6 +175,7 @@ body {
   justify-content: center;
   cursor: pointer;
   font-size: 11px;
+  transition: var(--transition-smooth);
 }
 .btn-create-playlist:hover {
   background: var(--accent-green);
@@ -229,6 +230,7 @@ body {
   cursor: pointer;
   opacity: 0;
   font-size: 13px;
+  transition: var(--transition-smooth);
 }
 .nav-item:hover .btn-delete-playlist { opacity: 0.8; }
 .btn-delete-playlist:hover { color: #ff5252 !important; opacity: 1 !important; }
@@ -296,6 +298,7 @@ body {
   padding: 10px 18px;
   border-radius: 30px;
   width: 100%;
+  transition: var(--transition-smooth);
 }
 .search-bar:focus-within {
   border-color: var(--accent-green);
@@ -481,7 +484,7 @@ body {
   overflow: hidden;
   margin-bottom: 36px;
   box-shadow: var(--shadow-lg);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .hero-body { position: relative; z-index: 2; max-width: 550px; }
 .badge-tag {
@@ -501,12 +504,12 @@ body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 38px; font-weight: 800; line-height: 1.15;
   margin-bottom: 12px;
-  text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
 }
 .hero-desc {
   color: rgba(255, 255, 255, 0.85);
   font-size: 14px; line-height: 1.5; margin-bottom: 24px;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 .hero-actions { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .btn {
@@ -759,6 +762,7 @@ body {
   color: var(--text-muted); font-size: 16px;
   cursor: pointer; padding: 6px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
+  transition: var(--transition-smooth);
 }
 .like-btn:hover, .btn-row-add-pl:hover, .btn-row-add-queue:hover { color: var(--accent-green); transform: scale(1.15); }
 .like-btn.liked { color: var(--accent-green) !important; }
@@ -880,7 +884,7 @@ body {
 .mobile-top-progress-fill { height: 100%; width: 0%; background-color: var(--accent-green); }
 
 .player-track-meta { display: flex; align-items: center; gap: 14px; width: 25%; min-width: 180px; }
-.meta-cover { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; }
+.meta-cover { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; transition: var(--transition-smooth); }
 .clickable-cover, .clickable-title { cursor: pointer; }
 .clickable-cover:hover { transform: scale(1.08); box-shadow: 0 4px 12px rgba(30, 215, 96, 0.3); }
 .clickable-title:hover { color: var(--accent-green); text-decoration: underline; }
@@ -958,12 +962,16 @@ body {
 
 .modal-body { margin-bottom: 24px; }
 .modal-body label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
-.modal-body input[type="text"] {
+.modal-body input[type="text"], .modal-body textarea {
   width: 100%; padding: 12px 16px; background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color); border-radius: 10px; color: #fff;
-  font-size: 14px; outline: none;
+  font-size: 14px; outline: none; font-family: inherit; resize: none;
 }
-.modal-body input[type="text"]:focus { border-color: var(--accent-green); }
+.modal-body input[type="text"]:focus, .modal-body textarea:focus { border-color: var(--accent-green); }
+
+.checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.checkbox-group input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent-green); }
+.checkbox-group label { margin: 0; cursor: pointer; color: #fff; font-size: 13px; }
 
 .upload-modal-content { display: flex; gap: 24px; align-items: flex-start; }
 .cover-upload-section { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 160px; flex-shrink: 0; }
@@ -977,6 +985,7 @@ body {
   position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6);
   opacity: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px; color: #fff; font-size: 11px;
+  transition: var(--transition-smooth);
 }
 .cover-preview-box:hover .cover-overlay-hint { opacity: 1; }
 .btn-upload-cover-btn {
@@ -1185,7 +1194,7 @@ body {
   }
   .playlist-detail-cover-box { width: 140px; height: 140px; }
   .playlist-detail-meta { justify-content: center; flex-wrap: wrap; }
-  .playlist-action-bar { justify-content: center; }
+  .playlist-action-bar { justify-content: center; flex-wrap: wrap; }
   .track-list-header { display: none; }
   .expanded-ctrl-row { gap: 16px; }
 }
@@ -1247,7 +1256,6 @@ body {
   font-size: 15px;
 }
 
-/* Modal List for selecting tracks */
 .select-songs-list {
   display: flex;
   flex-direction: column;

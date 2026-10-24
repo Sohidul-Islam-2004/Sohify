@@ -24,6 +24,8 @@ const userSchema = new mongoose.Schema(
 const playlistSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
+        description: { type: String, default: "", trim: true },
+        isPrivate: { type: Boolean, default: true },
         coverUrl: { type: String, default: "" },
         user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         songs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }]

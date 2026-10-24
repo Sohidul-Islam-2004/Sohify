@@ -17,10 +17,8 @@
 </head>
 
 <body>
-    <!-- Mobile sidebar overlay -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Drag & Drop visual overlay for local songs -->
     <div class="drop-overlay" id="dropOverlay" style="display: none;">
         <div class="drop-card">
             <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -29,14 +27,13 @@
         </div>
     </div>
 
-    <!-- Hidden input to upload user profile photo -->
     <input type="file" id="userAvatarInput" accept="image/*" style="display: none;">
 
     <div class="app-viewport">
         <!-- 1. SIDEBAR NAVIGATION -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <a href="dash.html" class="brand-logo">
+                <a href="/Dashboard" class="brand-logo">
                     <i class="fa-solid fa-compact-disc rotating-logo"></i>
                     <h2>SoundPulse</h2>
                 </a>
@@ -45,7 +42,6 @@
                 </button>
             </div>
 
-            <!-- Import Local/Private Song Button -->
             <div class="sidebar-action-box">
                 <button class="btn btn-upload-sidebar" id="sidebarUploadBtn" title="Upload a private audio file only visible to you">
                     <i class="fa-solid fa-circle-plus"></i>
@@ -69,7 +65,6 @@
                 </ul>
             </div>
 
-            <!-- PLAYLISTS -->
             <div class="nav-group">
                 <div class="nav-group-header">
                     <p class="nav-label">Playlists</p>
@@ -95,18 +90,16 @@
                 </div>
 
                 <div class="header-right">
-                    <!-- ADMIN-ONLY BUTTON -->
-                    <button class="btn btn-glass btn-upload-header" id="headerUploadBtn" style="display: none;" title="Admin Cloud Upload (Supabase + MongoDB)">
+                    <button class="btn btn-glass btn-upload-header" id="headerUploadBtn" style="display: none;" title="Admin Cloud Upload">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                         <span>Upload Audio</span>
                     </button>
 
-                    <a href="login.html" class="btn-login" id="authBtn">
+                    <a href="/Login" class="btn-login" id="authBtn">
                         <i class="fa-solid fa-right-to-bracket"></i>
                         <span id="authBtnText">Log In</span>
                     </a>
 
-                    <!-- User Profile Area -->
                     <div class="user-profile-container">
                         <div class="user-profile" id="userProfileBtn" title="Click to view profile & options">
                             <div class="user-avatar-wrap">
@@ -117,7 +110,6 @@
                             <i class="fa-solid fa-chevron-down profile-dropdown-arrow"></i>
                         </div>
 
-                        <!-- USER INFO POPOVER CARD -->
                         <div class="user-info-card" id="userInfoCard">
                             <div class="user-card-header">
                                 <div class="user-card-avatar-wrap" id="cardAvatarUploadBtn" title="Click to change profile picture">
@@ -162,7 +154,6 @@
                 
                 <!-- DYNAMIC HOME VIEW -->
                 <div id="homeViewContainer">
-                    <!-- Featured Recommended Hero Banner -->
                     <section class="hero-banner" id="heroBanner" style="display: none;">
                         <div class="hero-body">
                             <span class="badge-tag"><i class="fa-solid fa-star"></i> Recommended For You</span>
@@ -175,7 +166,6 @@
                         </div>
                     </section>
 
-                    <!-- Latest Uploads to Server -->
                     <section id="latestUploadsSection" style="margin-bottom: 36px;">
                         <div class="section-title-row">
                             <h3>Latest Server Uploads</h3>
@@ -184,7 +174,7 @@
                     </section>
                 </div>
 
-                <!-- SPOTIFY-INSPIRED PLAYLIST DETAIL BANNER -->
+                <!-- PLAYLIST DETAIL BANNER -->
                 <section class="playlist-detail-banner" id="playlistDetailBanner" style="display: none;">
                     <div class="playlist-detail-cover-box">
                         <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop" 
@@ -217,6 +207,13 @@
                     </button>
                     <button class="ctrl-btn pl-action-icon-btn" id="plActionShuffleBtn" title="Shuffle Playlist">
                         <i class="fa-solid fa-shuffle"></i>
+                    </button>
+                    <!-- SHARE PLAYLIST BUTTON -->
+                    <button class="ctrl-btn pl-action-icon-btn" id="plActionShareBtn" title="Copy Shareable Link">
+                        <i class="fa-solid fa-share-nodes"></i>
+                    </button>
+                    <button class="ctrl-btn pl-action-icon-btn" id="plActionEditBtn" title="Edit Playlist Details">
+                        <i class="fa-solid fa-pen"></i>
                     </button>
                     <button class="ctrl-btn pl-action-icon-btn delete-pl-btn" id="plActionDeleteBtn" title="Delete Playlist">
                         <i class="fa-solid fa-trash-can"></i>
@@ -371,6 +368,53 @@
             <div class="modal-footer">
                 <button class="btn btn-glass" id="cancelCreatePlaylistBtn">Cancel</button>
                 <button class="btn btn-green" id="confirmCreatePlaylistBtn">Create Playlist</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT PLAYLIST MODAL -->
+    <div class="modal-overlay" id="editPlaylistModal">
+        <div class="modal-box modal-box-large">
+            <div class="modal-header">
+                <h3 id="editPlaylistModalTitle"><i class="fa-solid fa-pen-to-square"></i> Edit Playlist Details</h3>
+                <button class="modal-close-btn" id="closeEditPlaylistModalBtn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-modal-content">
+                    <div class="cover-upload-section">
+                        <div class="cover-preview-box" id="editPlaylistCoverBox" title="Click to change playlist cover">
+                            <img id="editPlaylistCoverPreview" src="" alt="Playlist Cover Preview">
+                            <div class="cover-overlay-hint">
+                                <i class="fa-solid fa-camera"></i>
+                                <span>Change Cover</span>
+                            </div>
+                        </div>
+                        <input type="file" id="editPlaylistCoverInput" accept="image/*" style="display: none;">
+                    </div>
+
+                    <div class="song-meta-section">
+                        <div class="form-group">
+                            <label for="editPlaylistName">Playlist Name *</label>
+                            <input type="text" id="editPlaylistName" placeholder="e.g. Driving Vibes" maxlength="40">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="editPlaylistDesc">Description</label>
+                            <textarea id="editPlaylistDesc" placeholder="Add an optional description" rows="3"></textarea>
+                        </div>
+
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="editPlaylistPrivate">
+                            <label for="editPlaylistPrivate">Keep this playlist Private (Only you can see it)</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-glass" id="cancelEditPlaylistBtn">Cancel</button>
+                <button class="btn btn-green" id="confirmEditPlaylistBtn">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                </button>
             </div>
         </div>
     </div>
@@ -543,7 +587,7 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
-    <audio id="audioElement" preload="metadata"></audio>
+    <audio id="audioElement" preload="auto"></audio>
     <script src="script.js"></script>
 </body>
 </html>
