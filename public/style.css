@@ -1052,3 +1052,47 @@ body {
   .hero-banner { padding: 36px 24px; }
   .footer-grid { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 480px) {
+  .hero-heading { font-size: 28px; }
+  .hero-subtitle { font-size: 14px; }
+  .hero-cta-group {
+    flex-direction: column;
+    width: 100%;
+    gap: 12px;
+  }
+  .btn-hero-green,
+  .btn-hero-glass {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+  .hero-stats {
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+  }
+  .stat-divider { display: none; }
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .music-card {
+    padding: 12px;
+  }
+  .hero-banner {
+    padding: 28px 16px;
+  }
+  .banner-title {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 360px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+  .hero-heading {
+    font-size: 24px;
+  }
+}
