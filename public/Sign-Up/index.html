@@ -98,114 +98,214 @@
             <span class="brand-name">Sohify</span>
           </a>
 
-          <div class="music-badge">
-            <i class="fa-solid fa-wave-square"></i>
-            <span>New here? Let's tune you in.</span>
+          <!-- STEP 1: REGISTRATION FORM -->
+          <div id="signupStep">
+            <div class="music-badge">
+              <i class="fa-solid fa-wave-square"></i>
+              <span>New here? Let's tune you in.</span>
+            </div>
+
+            <h2>Create Account</h2>
+            <p class="subtitle">
+              Start streaming millions of tracks — free forever.
+            </p>
+
+            <form id="signupForm">
+              <div class="input-group">
+                <label for="fullName">Full Name</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-user"></i>
+                  <input
+                    type="text"
+                    id="fullName"
+                    name="fullName"
+                    placeholder="Full name"
+                    autocomplete="name"
+                    required
+                  />
+                </div>
+                <span class="error-message" id="nameError"></span>
+              </div>
+
+              <div class="input-group">
+                <label for="email">Original Email Address</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-envelope"></i>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="name@example.com"
+                    autocomplete="email"
+                    required
+                  />
+                </div>
+                <span class="error-message" id="emailError"></span>
+              </div>
+
+              <div class="input-group">
+                <label for="password">Password</label>
+                <div class="password-wrapper">
+                  <i class="fa-solid fa-lock input-icon-left"></i>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Create a strong password (min 8 chars)"
+                    autocomplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    class="toggle-btn"
+                    onclick="togglePasswordVisibility('password', this)"
+                  >
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+                <div class="strength-meter" id="strengthMeter">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+                <span class="error-message" id="passwordError"></span>
+              </div>
+
+              <div class="input-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <div class="password-wrapper">
+                  <i class="fa-solid fa-lock input-icon-left"></i>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="Re-enter your password"
+                    autocomplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    class="toggle-btn"
+                    onclick="togglePasswordVisibility('confirmPassword', this)"
+                  >
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+                <span class="error-message" id="confirmPasswordError"></span>
+              </div>
+
+              <div class="form-actions">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="terms" required /> I agree to the
+                  <a href="#" class="accent-link">Terms &amp; Conditions</a>
+                </label>
+              </div>
+
+              <button type="submit" class="submit-btn" id="signupSubmitBtn">
+                <i class="fa-solid fa-paper-plane"></i>
+                <span>Send Confirmation Code</span>
+              </button>
+            </form>
+
+            <p class="switch-prompt">
+              Already have an account? <a href="/Login/">Sign in</a>
+            </p>
           </div>
 
-          <h2>Create Account</h2>
-          <p class="subtitle">
-            Start streaming millions of tracks — free forever.
-          </p>
-
-          <form id="signupForm">
-            <div class="input-group">
-              <label for="fullName">Full Name</label>
-              <div class="input-with-icon">
-                <i class="fa-solid fa-user"></i>
-                <input
-                  type="text"
-                  id="fullName"
-                  name="fullName"
-                  placeholder="Full name"
-                  autocomplete="name"
-                  required
-                />
-              </div>
-              <span class="error-message" id="nameError"></span>
+          <!-- STEP 2: EMAIL OTP CONFIRMATION -->
+          <div id="verifyStep" style="display: none;">
+            <div class="music-badge verification-badge">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Email Confirmation</span>
             </div>
 
-            <div class="input-group">
-              <label for="email">Email Address</label>
-              <div class="input-with-icon">
-                <i class="fa-solid fa-envelope"></i>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  placeholder="name@example.com"
-                  autocomplete="email"
-                  required
-                />
-              </div>
-              <span class="error-message" id="emailError"></span>
-            </div>
+            <h2>Confirm Your Email</h2>
+            <p class="subtitle">
+              We sent a 6-digit confirmation code to:
+              <span class="verify-target-email" id="verifyTargetEmail">your@email.com</span>
+            </p>
 
-            <div class="input-group">
-              <label for="password">Password</label>
-              <div class="password-wrapper">
-                <i class="fa-solid fa-lock input-icon-left"></i>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="Create a strong password"
-                  autocomplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  class="toggle-btn"
-                  onclick="togglePasswordVisibility('password', this)"
-                >
-                  <i class="fa-solid fa-eye"></i>
+            <div id="verifyAlert" class="verify-alert" style="display: none;"></div>
+
+            <form id="verifyForm">
+              <div class="input-group">
+                <label>Enter 6-Digit Code</label>
+                <div class="otp-container" id="otpContainer">
+                  <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="otp-digit"
+                    data-index="0"
+                    autocomplete="one-time-code"
+                    required
+                  />
+                  <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="otp-digit"
+                    data-index="1"
+                    required
+                  />
+                  <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="otp-digit"
+                    data-index="2"
+                    required
+                  />
+                  <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="otp-digit"
+                    data-index="3"
+                    required
+                  />
+                  <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="otp-digit"
+                    data-index="4"
+                    required
+                  />
+                  <input
+                    type="text"
+                    maxlength="1"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="otp-digit"
+                    data-index="5"
+                    required
+                  />
+                </div>
+                <span class="error-message" id="verifyError"></span>
+              </div>
+
+              <button type="submit" class="submit-btn" id="verifySubmitBtn">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>Confirm &amp; Activate Account</span>
+              </button>
+            </form>
+
+            <div class="verify-actions">
+              <p class="resend-text">
+                Didn't get the code?
+                <button type="button" id="resendCodeBtn" class="resend-btn" disabled>
+                  Resend (<span id="resendCountdown">45</span>s)
                 </button>
-              </div>
-              <div class="strength-meter" id="strengthMeter">
-                <span></span><span></span><span></span><span></span>
-              </div>
-              <span class="error-message" id="passwordError"></span>
+              </p>
+              <button type="button" id="backToSignupBtn" class="change-email-btn">
+                <i class="fa-solid fa-arrow-left"></i> Change Email / Edit Details
+              </button>
             </div>
-
-            <div class="input-group">
-              <label for="confirmPassword">Confirm Password</label>
-              <div class="password-wrapper">
-                <i class="fa-solid fa-lock input-icon-left"></i>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  placeholder="Re-enter your password"
-                  autocomplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  class="toggle-btn"
-                  onclick="togglePasswordVisibility('confirmPassword', this)"
-                >
-                  <i class="fa-solid fa-eye"></i>
-                </button>
-              </div>
-              <span class="error-message" id="confirmPasswordError"></span>
-            </div>
-
-            <div class="form-actions">
-              <label class="checkbox-label">
-                <input type="checkbox" id="terms" required /> I agree to the
-                <a href="#" class="accent-link">Terms &amp; Conditions</a>
-              </label>
-            </div>
-
-            <button type="submit" class="submit-btn">
-              <i class="fa-solid fa-circle-play"></i>
-              <span>Create Account</span>
-            </button>
-          </form>
-
-          <p class="switch-prompt">
-            Already have an account? <a href="/Login/">Sign in</a>
-          </p>
+          </div>
         </div>
       </main>
     </div>

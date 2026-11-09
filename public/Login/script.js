@@ -21,7 +21,7 @@ passwordInput.addEventListener("input", () => (passwordError.textContent = ""));
 function showFieldError(field, message) {
     if (field === "email") emailError.textContent = message;
     else if (field === "password") passwordError.textContent = message;
-    else alert(message);
+    else emailError.textContent = message;
 }
 
 window.addEventListener("DOMContentLoaded", () => {
