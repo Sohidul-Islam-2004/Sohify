@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Terms &amp; Conditions – Sound Pulse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="/Terms/style.css" />
+  </head>
+
+  <body>
+    <!-- COSMIC GRID, STARFIELD & HORIZON AURORA -->
+    <div class="cyber-grid" aria-hidden="true"></div>
+    <div class="cosmic-stars" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="cosmic-horizon" aria-hidden="true"></div>
+
+    <!-- AMBIENT AURORA ORBS -->
+    <div class="bg-orbs" aria-hidden="true">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="navbar">
+      <div class="nav-container">
+        <a href="/" class="brand-mark">
+          <span class="brand-icon" aria-hidden="true">
+            <img src="/favicon.svg" alt="" class="brand-logo-svg" />
+          </span>
+          <span class="brand-name"
+            >Sound <span class="neon-word">Pulse</span></span
+          >
+        </a>
+
+        <nav class="nav-links" id="navLinks" aria-label="Primary Navigation">
+          <a href="/">Home</a>
+          <a href="#highlights">Overview</a>
+          <a href="#terms-sections">All Clauses</a>
+          <a href="/Dashboard/" class="nav-player-link">
+            <i class="fa-solid fa-circle-play"></i> Web Player
+          </a>
+        </nav>
+
+        <div class="nav-actions">
+          <a href="/Login/" class="btn-ghost">Sign In</a>
+          <a href="/Sign-Up/" class="btn-primary">Create Account</a>
+          <button
+            type="button"
+            class="mobile-toggle"
+            id="mobileToggle"
+            aria-label="Toggle Menu"
+            aria-expanded="false"
+          >
+            <i class="fa-solid fa-bars"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="terms-main">
+      <!-- HERO HEADER -->
+      <section class="terms-hero container">
+        <div class="hero-card">
+          <div class="hero-eyebrow">
+            <i class="fa-solid fa-scale-balanced"></i>
+            <span>Legal Agreement · Sound Pulse v1.0</span>
+          </div>
+          <h1>Terms &amp; <span class="neon-word">Conditions</span></h1>
+          <p class="hero-lead">
+            Welcome to Sound Pulse. These Terms &amp; Conditions govern your
+            access to our web music player, account registration, email OTP
+            confirmation, personal audio vault, playlists, and related features.
+          </p>
+
+          <div class="meta-strip">
+            <span class="meta-pill">
+              <i class="fa-regular fa-calendar-check"></i>
+              Effective: November 10, 2026
+            </span>
+            <span class="meta-pill">
+              <i class="fa-solid fa-shield-halved"></i>
+              Google SMTP OTP Verified
+            </span>
+            <span class="meta-pill">
+              <i class="fa-solid fa-headphones"></i>
+              Sound Pulse Music Platform
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- KEY HIGHLIGHTS SUMMARY -->
+      <section class="highlights-section container" id="highlights">
+        <div class="highlights-grid">
+          <article class="highlight-card">
+            <div class="hl-icon hl-cyan">
+              <i class="fa-solid fa-user-check"></i>
+            </div>
+            <h3>Verified Original Accounts</h3>
+            <p>
+              New accounts require email ownership confirmation via a 6-digit
+              code sent over Google SMTP, plus old-password checks before
+              updating passwords.
+            </p>
+          </article>
+
+          <article class="highlight-card">
+            <div class="hl-icon hl-violet">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h3>Personal Audio Vault</h3>
+            <p>
+              You retain ownership of private tracks you upload. You confirm
+              that any uploaded audio or cover art respects copyright law and
+              contains no harmful code.
+            </p>
+          </article>
+
+          <article class="highlight-card">
+            <div class="hl-icon hl-magenta">
+              <i class="fa-solid fa-file-contract"></i>
+            </div>
+            <h3>Fair Streaming Usage</h3>
+            <p>
+              Streaming access is provided for personal, non-commercial
+              listening. Scraping, reselling access, or bypassing service
+              protections is strictly prohibited.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- MAIN LEGAL DOCUMENT + STICKY TOC -->
+      <section class="document-section container" id="terms-sections">
+        <aside class="toc-sidebar" aria-label="Table of Contents">
+          <div class="toc-card">
+            <div class="toc-header">
+              <i class="fa-solid fa-list-check"></i>
+              <span>Sections</span>
+            </div>
+            <ul class="toc-list" id="tocList">
+              <li>
+                <a href="#sec-acceptance" class="active">1. Acceptance &amp; Eligibility</a>
+              </li>
+              <li>
+                <a href="#sec-accounts">2. Accounts &amp; Email Verification</a>
+              </li>
+              <li>
+                <a href="#sec-streaming">3. Streaming &amp; Audio Vault</a>
+              </li>
+              <li>
+                <a href="#sec-conduct">4. Acceptable Use</a>
+              </li>
+              <li>
+                <a href="#sec-ip">5. Platform &amp; Intellectual Property</a>
+              </li>
+              <li>
+                <a href="#sec-privacy">6. Privacy &amp; Service Stack</a>
+              </li>
+              <li>
+                <a href="#sec-liability">7. Termination &amp; Liability</a>
+              </li>
+            </ul>
+
+            <div class="toc-actions">
+              <a href="/Sign-Up/" class="btn-toc-cta">
+                <i class="fa-solid fa-user-plus"></i> Back to Sign Up
+              </a>
+            </div>
+          </div>
+        </aside>
+
+        <div class="clauses-column">
+          <!-- 1 -->
+          <article class="clause-card" id="sec-acceptance">
+            <div class="clause-header">
+              <span class="clause-num">01</span>
+              <h2>Acceptance of Terms &amp; Eligibility</h2>
+            </div>
+            <p>
+              By creating a Sound Pulse account, checking the &ldquo;I agree to
+              the Terms &amp; Conditions&rdquo; box during registration, signing
+              in, or streaming audio through the Sound Pulse web player, you
+              agree to be legally bound by these Terms &amp; Conditions.
+            </p>
+            <ul>
+              <li>
+                <strong>Minimum Age:</strong> You must be at least 13 years old
+                (or the minimum age required in your country) to use Sound
+                Pulse. If you are under 18, you confirm you have a parent or
+                legal guardian&rsquo;s consent.
+              </li>
+              <li>
+                <strong>Consent Record:</strong> When you register, Sound Pulse
+                records your acceptance timestamp alongside your verified
+                account profile.
+              </li>
+              <li>
+                <strong>Non-Agreement:</strong> If you do not agree with any
+                provision of these Terms, do not register for an account or use
+                our streaming services.
+              </li>
+            </ul>
+          </article>
+
+          <!-- 2 -->
+          <article class="clause-card" id="sec-accounts">
+            <div class="clause-header">
+              <span class="clause-num">02</span>
+              <h2>Account Registration, Email Verification &amp; Security</h2>
+            </div>
+            <p>
+              To protect community authenticity and prevent impersonation, Sound
+              Pulse requires real, accessible email addresses during account
+              creation.
+            </p>
+            <ul>
+              <li>
+                <strong>Original Email OTP Verification:</strong> Registration
+                is completed in two steps. A temporary 6-digit confirmation code
+                (valid for 15 minutes, capped at 5 verification attempts) is sent
+                to your provided email via Google SMTP. Unverified accounts are
+                not activated.
+              </li>
+              <li>
+                <strong>Password Protection:</strong> Passwords must be at least
+                8 characters long and are stored as cryptographic bcrypt hashes.
+                You are responsible for choosing a strong, unique password and
+                keeping it confidential.
+              </li>
+              <li>
+                <strong>Identity Check on Password Change:</strong> Before
+                changing your password from the Sound Pulse Dashboard, you must
+                verify your identity by entering your current (old) password.
+              </li>
+              <li>
+                <strong>Account Responsibility:</strong> You are responsible for
+                activity carried out through your active browser session. Log
+                out cleanly on shared devices.
+              </li>
+            </ul>
+          </article>
+
+          <!-- 3 -->
+          <article class="clause-card" id="sec-streaming">
+            <div class="clause-header">
+              <span class="clause-num">03</span>
+              <h2>Streaming License, Personal Vault Uploads &amp; Content</h2>
+            </div>
+            <p>
+              Sound Pulse provides access to both curated platform tracks and a
+              private Personal Audio Vault where authenticated members can
+              upload their own audio files.
+            </p>
+            <ul>
+              <li>
+                <strong>Listening License:</strong> We grant you a limited,
+                non-exclusive, non-transferable, revocable license to stream
+                catalog audio strictly for personal, non-commercial listening.
+              </li>
+              <li>
+                <strong>Personal Vault Ownership:</strong> You retain all rights
+                to audio files, metadata, cover artwork, and avatars that you
+                upload to your Personal Vault. By uploading, you grant Sound
+                Pulse permission to store, process, and stream those files back
+                to your account.
+              </li>
+              <li>
+                <strong>Rights Clearance Warranty:</strong> You represent that
+                you own or hold valid rights/licenses to any media you upload,
+                and that uploads stay within the platform file limit (currently
+                50 MB per audio/artwork file).
+              </li>
+            </ul>
+          </article>
+
+          <!-- 4 -->
+          <article class="clause-card" id="sec-conduct">
+            <div class="clause-header">
+              <span class="clause-num">04</span>
+              <h2>Acceptable Use &amp; Prohibited Conduct</h2>
+            </div>
+            <p>
+              To keep Sound Pulse fast, safe, and respectful for all listeners,
+              you agree not to misuse the platform or its APIs:
+            </p>
+            <ul>
+              <li>
+                Do not attempt to bypass email OTP verification, brute-force
+                login/password endpoints, or probe another user&rsquo;s playlists
+                or private vault tracks.
+              </li>
+              <li>
+                Do not upload malware, corrupted executable payloads disguised
+                as audio/images, defamatory material, hate content, or
+                unauthorized copyrighted recordings.
+              </li>
+              <li>
+                Do not use automated bots, scrapers, or excessive scripted
+                requests that degrade server, database, SMTP, or media bandwidth
+                for other listeners.
+              </li>
+              <li>
+                Do not redistribute, resell, mirror, or commercially exploit
+                Sound Pulse catalog audio or branding.
+              </li>
+            </ul>
+          </article>
+
+          <!-- 5 -->
+          <article class="clause-card" id="sec-ip">
+            <div class="clause-header">
+              <span class="clause-num">05</span>
+              <h2>Service Plans, Feature Changes &amp; Intellectual Property</h2>
+            </div>
+            <p>
+              Sound Pulse offers Free Listener access and reserves the ability to
+              introduce or modify optional tiers (such as Pulse Hi-Fi) in the
+              future.
+            </p>
+            <ul>
+              <li>
+                <strong>Platform IP:</strong> The Sound Pulse name, Neon
+                Cyber-Pulse visual identity, logos, UI layout, playlists curated
+                by Sound Pulse, and software code remain the exclusive
+                intellectual property of Sound Pulse Music.
+              </li>
+              <li>
+                <strong>Service Evolution:</strong> We may update audio player
+                controls, playlist capabilities, upload limits, or design
+                components to maintain security and reliability.
+              </li>
+            </ul>
+          </article>
+
+          <!-- 6 -->
+          <article class="clause-card" id="sec-privacy">
+            <div class="clause-header">
+              <span class="clause-num">06</span>
+              <h2>Privacy, Data Handling &amp; Third-Party Infrastructure</h2>
+            </div>
+            <p>
+              Your privacy matters to us. We collect only what is needed to run
+              Sound Pulse reliably:
+            </p>
+            <ul>
+              <li>
+                <strong>Account &amp; Library Data:</strong> Name, verified
+                email, hashed password, Terms acceptance status, favorites,
+                recent plays, playlists, and track references are stored in
+                MongoDB.
+              </li>
+              <li>
+                <strong>Media Storage:</strong> Uploaded audio files, track
+                covers, and profile avatars are stored via Supabase Storage so
+                streaming remains responsive across devices.
+              </li>
+              <li>
+                <strong>Transactional Emails:</strong> Verification OTP emails
+                are dispatched via Google SMTP solely for account authentication
+                and security alerts &mdash; never sold to third parties.
+              </li>
+            </ul>
+          </article>
+
+          <!-- 7 -->
+          <article class="clause-card" id="sec-liability">
+            <div class="clause-header">
+              <span class="clause-num">07</span>
+              <h2>Termination, Disclaimers, Liability &amp; Contact</h2>
+            </div>
+            <ul>
+              <li>
+                <strong>Account Termination:</strong> We may suspend or
+                terminate accounts that materially violate copyright laws,
+                security protections, or acceptable use rules. You may stop
+                using the service at any time.
+              </li>
+              <li>
+                <strong>&ldquo;As Is&rdquo; Availability:</strong> While we aim
+                for uninterrupted 99.9% streaming uptime, Sound Pulse is
+                provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo;
+                without warranties of uninterrupted availability.
+              </li>
+              <li>
+                <strong>Limitation of Liability:</strong> To the maximum extent
+                permitted by applicable law, Sound Pulse Music shall not be
+                liable for indirect, incidental, or consequential damages,
+                including loss of uploaded playlists or temporary playback
+                interruptions. Keep local backups of original audio files you
+                upload.
+              </li>
+              <li>
+                <strong>Updates &amp; Contact:</strong> Material changes to
+                these Terms will update the effective date at the top of this
+                page. Questions or removal requests may be sent to
+                <a href="mailto:soundpulsecode@gmail.com" class="inline-neon-link"
+                  >soundpulsecode@gmail.com</a
+                >.
+              </li>
+            </ul>
+          </article>
+
+          <!-- BOTTOM CTA CARD -->
+          <div class="bottom-cta-card">
+            <div class="cta-text">
+              <h3>Ready to Tune Into Sound Pulse?</h3>
+              <p>
+                Head back to create your verified account or jump straight into
+                the Neon Web Player.
+              </p>
+            </div>
+            <div class="cta-buttons">
+              <a href="/Sign-Up/" class="btn-primary">
+                <i class="fa-solid fa-user-plus"></i> Sign Up
+              </a>
+              <a href="/Dashboard/" class="btn-outline">
+                <i class="fa-solid fa-headphones"></i> Open Player
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div class="footer-brand-row">
+          <a href="/" class="brand-mark">
+            <span class="brand-icon" aria-hidden="true">
+              <img src="/favicon.svg" alt="" class="brand-logo-svg" />
+            </span>
+            <span class="brand-name"
+              >Sound <span class="neon-word">Pulse</span></span
+            >
+          </a>
+          <p class="footer-copy">
+            &copy; 2026 Sound Pulse Music. All rights reserved.
+          </p>
+        </div>
+        <div class="footer-links-row">
+          <a href="/">Home</a>
+          <a href="/Dashboard/">Web Player</a>
+          <a href="/Sign-Up/">Create Account</a>
+          <a href="/Login/">Sign In</a>
+        </div>
+      </div>
+    </footer>
+
+    <!-- BACK TO TOP BUTTON -->
+    <button
+      type="button"
+      id="backToTopBtn"
+      class="back-to-top"
+      aria-label="Back to top"
+      title="Back to top"
+    >
+      <i class="fa-solid fa-arrow-up"></i>
+    </button>
+
+    <script>
+      (function () {
+        const mobileToggle = document.getElementById("mobileToggle");
+        const navLinks = document.getElementById("navLinks");
+        const backToTopBtn = document.getElementById("backToTopBtn");
+        const tocLinks = document.querySelectorAll("#tocList a");
+        const sections = document.querySelectorAll(".clause-card");
+
+        if (mobileToggle && navLinks) {
+          mobileToggle.addEventListener("click", () => {
+            const isOpen = navLinks.classList.toggle("open");
+            mobileToggle.setAttribute("aria-expanded", String(isOpen));
+            const icon = mobileToggle.querySelector("i");
+            if (icon) {
+              icon.className = isOpen
+                ? "fa-solid fa-xmark"
+                : "fa-solid fa-bars";
+            }
+          });
+
+          navLinks.querySelectorAll("a").forEach((link) => {
+            link.addEventListener("click", () => {
+              navLinks.classList.remove("open");
+              mobileToggle.setAttribute("aria-expanded", "false");
+              const icon = mobileToggle.querySelector("i");
+              if (icon) icon.className = "fa-solid fa-bars";
+            });
+          });
+        }
+
+        window.addEventListener(
+          "scroll",
+          () => {
+            if (backToTopBtn) {
+              backToTopBtn.classList.toggle("visible", window.scrollY > 360);
+            }
+          },
+          { passive: true }
+        );
+
+        if (backToTopBtn) {
+          backToTopBtn.addEventListener("click", () => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        }
+
+        if ("IntersectionObserver" in window && sections.length && tocLinks.length) {
+          const observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                  const id = entry.target.getAttribute("id");
+                  tocLinks.forEach((link) => {
+                    link.classList.toggle(
+                      "active",
+                      link.getAttribute("href") === "#" + id
+                    );
+                  });
+                }
+              });
+            },
+            { rootMargin: "-20% 0px -65% 0px", threshold: 0 }
+          );
+          sections.forEach((sec) => observer.observe(sec));
+        }
+      })();
+    </script>
+  </body>
+</html>

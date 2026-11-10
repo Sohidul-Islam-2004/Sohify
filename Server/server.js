@@ -16,10 +16,12 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(__dirname));
 
-const { userSchema, songSchema, playlistSchema } = require("./schema");
+const { userSchema, songSchema, playlistSchema, emailVerificationSchema } = require("./schema");
 const User = mongoose.model("User", userSchema);
 const Song = mongoose.model("Song", songSchema);
 const Playlist = mongoose.model("Playlist", playlistSchema);
+const EmailVerification = mongoose.model("EmailVerification", emailVerificationSchema);
+const { sendVerificationEmail } = require("./mailer");
 
 const PORT = process.env.PORT || 5000;
 const DB_URL = process.env.DB_URL;
@@ -88,34 +90,217 @@ async function getUserOr404(userId, res) {
 }
 
 /* ============================================================
-   AUTHENTICATION
+   AUTHENTICATION & EMAIL VERIFICATION (Google SMTP)
    ============================================================ */
-app.post("/api/users/register", async (req, res) => {
+
+/**
+ * Step 1: Request 6-digit confirmation code via Google SMTP.
+ * Validates credentials and sends the OTP to the user's original email.
+ */
+app.post("/api/users/send-verification", async (req, res) => {
     try {
-        const { fullName, email, password, confirmPassword } = req.body;
-        if (!fullName || !email || !password) return res.status(400).json({ message: "All fields are required." });
-        if (password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters." });
-        if (confirmPassword !== undefined && password !== confirmPassword) {
-            return res.status(400).json({ message: "Passwords do not match." });
+        const { fullName, email, password, confirmPassword, acceptedTerms } = req.body;
+        if (!fullName || !email || !password) {
+            return res.status(400).json({ field: "fullName", message: "All fields are required." });
         }
 
-        const existing = await User.findOne({ email: email.toLowerCase().trim() });
-        if (existing) return res.status(409).json({ message: "Email already exists." });
+        const cleanName = String(fullName).trim();
+        const cleanEmail = String(email).toLowerCase().trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cleanEmail)) {
+            return res.status(400).json({ field: "email", message: "Please enter a valid email address." });
+        }
 
+        if (password.length < 8) {
+            return res.status(400).json({ field: "password", message: "Password must be at least 8 characters." });
+        }
+        if (confirmPassword !== undefined && password !== confirmPassword) {
+            return res.status(400).json({ field: "confirmPassword", message: "Passwords do not match." });
+        }
+        if (acceptedTerms !== true) {
+            return res.status(400).json({
+                field: "terms",
+                message: "You must agree to the Terms & Conditions to create an account."
+            });
+        }
+
+        // Check if an account already exists
+        const existing = await User.findOne({ email: cleanEmail });
+        if (existing) {
+            return res.status(409).json({ field: "email", message: "An account with this email already exists. Please log in." });
+        }
+
+        // Rate limit: 45-second cooldown per email
+        const pending = await EmailVerification.findOne({ email: cleanEmail });
+        if (pending && pending.updatedAt && (Date.now() - new Date(pending.updatedAt).getTime() < 45000)) {
+            const waitSecs = Math.ceil((45000 - (Date.now() - new Date(pending.updatedAt).getTime())) / 1000);
+            return res.status(429).json({
+                message: `Please wait ${waitSecs} seconds before requesting a new code.`
+            });
+        }
+
+        // Generate 6-digit verification code
+        const code = String(Math.floor(100000 + Math.random() * 900000));
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await User.create({
-            name: fullName.trim(),
-            email: email.toLowerCase().trim(),
-            password: hashedPassword
+
+        await EmailVerification.findOneAndUpdate(
+            { email: cleanEmail },
+            {
+                email: cleanEmail,
+                fullName: cleanName,
+                password: hashedPassword,
+                code,
+                termsAccepted: true,
+                termsAcceptedAt: new Date(),
+                attempts: 0,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+        );
+
+        const mailResult = await sendVerificationEmail(cleanEmail, cleanName, code);
+
+        res.status(200).json({
+            success: true,
+            message: `A 6-digit confirmation code was sent to ${cleanEmail}.`,
+            email: cleanEmail,
+            simulated: Boolean(mailResult.simulated)
         });
+    } catch (err) {
+        console.error("send-verification error:", err);
+        res.status(500).json({ message: err.message || "Failed to send confirmation email." });
+    }
+});
+
+/**
+ * Resend 6-digit confirmation code with rate limiting
+ */
+app.post("/api/users/resend-verification", async (req, res) => {
+    try {
+        const cleanEmail = String(req.body.email || "").toLowerCase().trim();
+        if (!cleanEmail) {
+            return res.status(400).json({ message: "Email address is required." });
+        }
+
+        const pending = await EmailVerification.findOne({ email: cleanEmail });
+        if (!pending) {
+            return res.status(404).json({
+                message: "Verification session expired or not found. Please fill out the registration form again."
+            });
+        }
+
+        if (pending.updatedAt && (Date.now() - new Date(pending.updatedAt).getTime() < 45000)) {
+            const waitSecs = Math.ceil((45000 - (Date.now() - new Date(pending.updatedAt).getTime())) / 1000);
+            return res.status(429).json({
+                message: `Please wait ${waitSecs} seconds before requesting another code.`
+            });
+        }
+
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        pending.code = code;
+        pending.attempts = 0;
+        pending.createdAt = new Date();
+        pending.updatedAt = new Date();
+        await pending.save();
+
+        const mailResult = await sendVerificationEmail(cleanEmail, pending.fullName, code);
+
+        res.json({
+            success: true,
+            message: `A new 6-digit confirmation code was sent to ${cleanEmail}.`,
+            email: cleanEmail,
+            simulated: Boolean(mailResult.simulated)
+        });
+    } catch (err) {
+        console.error("resend-verification error:", err);
+        res.status(500).json({ message: err.message || "Failed to resend confirmation email." });
+    }
+});
+
+/**
+ * Step 2: Confirm 6-digit code and create user in database
+ */
+app.post("/api/users/verify-and-register", async (req, res) => {
+    try {
+        const cleanEmail = String(req.body.email || "").toLowerCase().trim();
+        const cleanCode = String(req.body.code || "").trim();
+
+        if (!cleanEmail || !cleanCode) {
+            return res.status(400).json({ message: "Email and 6-digit code are required." });
+        }
+
+        const pending = await EmailVerification.findOne({ email: cleanEmail });
+        if (!pending) {
+            return res.status(400).json({
+                message: "Confirmation code has expired or does not exist. Please request a new code."
+            });
+        }
+
+        if (pending.attempts >= 5) {
+            await EmailVerification.deleteOne({ _id: pending._id });
+            return res.status(429).json({
+                message: "Too many failed attempts. For security, please sign up again to receive a fresh code."
+            });
+        }
+
+        if (pending.code !== cleanCode) {
+            pending.attempts += 1;
+            await pending.save();
+            const remaining = 5 - pending.attempts;
+            return res.status(400).json({
+                message: `Invalid confirmation code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+            });
+        }
+
+        const existing = await User.findOne({ email: cleanEmail });
+        if (existing) {
+            await EmailVerification.deleteOne({ _id: pending._id });
+            return res.status(409).json({ message: "An account with this email already exists. Please log in." });
+        }
+
+        const user = await User.create({
+            name: pending.fullName,
+            email: pending.email,
+            password: pending.password,
+            isEmailVerified: true,
+            termsAccepted: Boolean(pending.termsAccepted),
+            termsAcceptedAt: pending.termsAcceptedAt || new Date()
+        });
+
+        await EmailVerification.deleteOne({ _id: pending._id });
 
         res.status(201).json({
             success: true,
-            data: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, avatarUrl: user.avatarUrl || "" }
+            message: "Email confirmed successfully! Your account is active.",
+            data: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                isAdmin: user.isAdmin,
+                avatarUrl: user.avatarUrl || ""
+            }
         });
     } catch (err) {
-        res.status(500).json({ message: "Server error." });
+        console.error("verify-and-register error:", err);
+        res.status(500).json({ message: "Server error during registration." });
     }
+});
+
+/**
+ * Legacy/Standard registration router:
+ * Requires code to finalize registration, ensuring email confirmation is strictly enforced.
+ */
+app.post("/api/users/register", async (req, res) => {
+    if (req.body.code) {
+        // Forward to verify-and-register
+        req.url = "/api/users/verify-and-register";
+        return app._router.handle(req, res);
+    }
+    return res.status(400).json({
+        needsVerification: true,
+        message: "Email verification is required. Please use the confirmation code sent to your email."
+    });
 });
 
 app.post("/api/users/login", async (req, res) => {
@@ -129,12 +314,96 @@ app.post("/api/users/login", async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ message: "Incorrect password." });
 
+        if (user.isEmailVerified === false) {
+            return res.status(403).json({
+                unverified: true,
+                message: "Please confirm your email address before logging in."
+            });
+        }
+
         res.json({
             success: true,
             data: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, avatarUrl: user.avatarUrl || "" }
         });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
+    }
+});
+
+/**
+ * Step 1: Confirm user identity by checking their current password.
+ */
+app.post("/api/users/:userId/verify-password", async (req, res) => {
+    try {
+        const user = await getUserOr404(req.params.userId, res);
+        if (!user) return;
+
+        const { oldPassword, email } = req.body;
+        if (!oldPassword) {
+            return res.status(400).json({ field: "oldPassword", message: "Current password is required to confirm your identity." });
+        }
+
+        if (email && String(email).toLowerCase().trim() !== user.email) {
+            return res.status(403).json({ field: "oldPassword", message: "Account identity mismatch." });
+        }
+
+        const isMatch = await bcrypt.compare(String(oldPassword), user.password);
+        if (!isMatch) {
+            return res.status(401).json({ field: "oldPassword", message: "Incorrect current password. Identity verification failed." });
+        }
+
+        res.json({ success: true, message: "Identity verified. You can now set a new password." });
+    } catch (err) {
+        res.status(500).json({ message: "Server error while verifying identity." });
+    }
+});
+
+/**
+ * Step 2: Change user password (strictly requires oldPassword identity verification).
+ */
+app.post("/api/users/:userId/change-password", async (req, res) => {
+    try {
+        const user = await getUserOr404(req.params.userId, res);
+        if (!user) return;
+
+        const { oldPassword, newPassword, confirmPassword, email } = req.body;
+        if (!oldPassword) {
+            return res.status(400).json({ field: "oldPassword", message: "Current password is required to confirm your identity." });
+        }
+        if (!newPassword) {
+            return res.status(400).json({ field: "newPassword", message: "Please enter a new password." });
+        }
+
+        if (email && String(email).toLowerCase().trim() !== user.email) {
+            return res.status(403).json({ field: "oldPassword", message: "Account identity mismatch." });
+        }
+
+        // Always confirm identity with old password before changing password
+        const isMatch = await bcrypt.compare(String(oldPassword), user.password);
+        if (!isMatch) {
+            return res.status(401).json({ field: "oldPassword", message: "Incorrect current password. Identity could not be verified." });
+        }
+
+        const newPassStr = String(newPassword);
+        if (newPassStr.length < 8) {
+            return res.status(400).json({ field: "newPassword", message: "New password must be at least 8 characters." });
+        }
+
+        if (confirmPassword !== undefined && newPassStr !== String(confirmPassword)) {
+            return res.status(400).json({ field: "confirmPassword", message: "New passwords do not match." });
+        }
+
+        if (String(oldPassword) === newPassStr) {
+            return res.status(400).json({ field: "newPassword", message: "New password must be different from your current password." });
+        }
+
+        user.password = await bcrypt.hash(newPassStr, 10);
+        await user.save();
+
+        res.json({ success: true, message: "Password updated successfully!" });
+    } catch (err) {
+        console.error("change-password error:", err);
+        res.status(500).json({ message: "Server error while updating password." });
     }
 });
 
@@ -379,7 +648,7 @@ app.put("/api/playlists/:playlistId/toggle-song", async (req, res) => {
 });
 
 /* ============================================================
-   HTML ROUTES (SPA-like navigation for Login, Sign-Up, Dashboard)
+   HTML ROUTES (SPA-like navigation for Login, Sign-Up, Dashboard, Terms)
    ============================================================ */
 app.get("/Login", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Login", "index.html")));
 app.get("/Login/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Login", "index.html")));
@@ -387,6 +656,8 @@ app.get("/Sign-Up", (req, res) => res.sendFile(path.join(__dirname, "..", "publi
 app.get("/Sign-Up/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Sign-Up", "index.html")));
 app.get("/Dashboard", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Dashboard", "index.html")));
 app.get("/Dashboard/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Dashboard", "index.html")));
+app.get("/Terms", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Terms", "index.html")));
+app.get("/Terms/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Terms", "index.html")));
 
 /* ============================================================
    ERRORS

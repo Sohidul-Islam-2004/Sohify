@@ -9,7 +9,12 @@ const API_BASE_URL = "/api";
 async function api(path, options = {}) {
     const res = await fetch(`${API_BASE_URL}${path}`, options);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || `Request failed (${res.status})`);
+    if (!res.ok) {
+        const err = new Error(data.message || `Request failed (${res.status})`);
+        err.field = data.field;
+        err.status = res.status;
+        throw err;
+    }
     return data;
 }
 
@@ -59,6 +64,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cardUserRole = document.getElementById("cardUserRole");
     const cardAvatarImg = document.getElementById("cardAvatarImg");
     const cardAvatarUploadBtn = document.getElementById("cardAvatarUploadBtn");
+    const cardChangePasswordBtn = document.getElementById("cardChangePasswordBtn");
     const cardLogoutBtn = document.getElementById("cardLogoutBtn");
     const userAvatarInput = document.getElementById("userAvatarInput");
     const headerUploadBtn = document.getElementById("headerUploadBtn");
@@ -88,11 +94,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             cardUserRole.className = `role-badge ${isAdmin ? "admin" : "listener"}`;
         }
         if (authBtn) authBtn.style.display = "none";
+        if (cardChangePasswordBtn) cardChangePasswordBtn.style.display = "flex";
     } else {
         if (displayUserName) displayUserName.textContent = "Guest Listener";
         if (cardUserName) cardUserName.textContent = "Guest Listener";
         if (cardUserEmail) cardUserEmail.textContent = "Not signed in";
         if (cardUserRole) cardUserRole.textContent = "Guest";
+        if (cardChangePasswordBtn) cardChangePasswordBtn.style.display = "none";
         if (cardLogoutBtn) cardLogoutBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> <span>Log In</span>`;
     }
 
@@ -154,6 +162,301 @@ document.addEventListener("DOMContentLoaded", async () => {
         sessionStorage.clear();
         showToast("Logged out successfully");
         setTimeout(() => { window.location.href = "/Login"; }, 500);
+    });
+
+    // --- B2. Change Password Modal (Requires Old Password Confirmation) ----
+    const changePasswordModal = document.getElementById("changePasswordModal");
+    const closeChangePasswordModalBtn = document.getElementById("closeChangePasswordModalBtn");
+    const cancelChangePasswordBtn = document.getElementById("cancelChangePasswordBtn");
+    const verifyIdentityBtn = document.getElementById("verifyIdentityBtn");
+    const cpBackToVerifyBtn = document.getElementById("cpBackToVerifyBtn");
+    const confirmChangePasswordBtn = document.getElementById("confirmChangePasswordBtn");
+
+    const cpAccountEmail = document.getElementById("cpAccountEmail");
+    const cpAlertBanner = document.getElementById("cpAlertBanner");
+    const cpStepVerify = document.getElementById("cpStepVerify");
+    const cpStepNew = document.getElementById("cpStepNew");
+    const cpFooterStep1 = document.getElementById("cpFooterStep1");
+    const cpFooterStep2 = document.getElementById("cpFooterStep2");
+    const cpStepBadge1 = document.getElementById("cpStepBadge1");
+    const cpStepBadge2 = document.getElementById("cpStepBadge2");
+    const cpStepLine = document.getElementById("cpStepLine");
+
+    const cpOldPassword = document.getElementById("cpOldPassword");
+    const cpNewPassword = document.getElementById("cpNewPassword");
+    const cpConfirmPassword = document.getElementById("cpConfirmPassword");
+    const cpOldPasswordError = document.getElementById("cpOldPasswordError");
+    const cpNewPasswordError = document.getElementById("cpNewPasswordError");
+    const cpConfirmPasswordError = document.getElementById("cpConfirmPasswordError");
+    const cpStrengthFill = document.getElementById("cpStrengthFill");
+    const cpStrengthText = document.getElementById("cpStrengthText");
+
+    let verifiedOldPassword = "";
+
+    function showCpAlert(message = "", type = "error") {
+        if (!cpAlertBanner) return;
+        if (!message) {
+            cpAlertBanner.style.display = "none";
+            cpAlertBanner.textContent = "";
+            cpAlertBanner.className = "cp-alert";
+            return;
+        }
+        cpAlertBanner.className = `cp-alert ${type}`;
+        cpAlertBanner.textContent = message;
+        cpAlertBanner.style.display = "block";
+    }
+
+    function clearCpErrors() {
+        if (cpOldPasswordError) cpOldPasswordError.textContent = "";
+        if (cpNewPasswordError) cpNewPasswordError.textContent = "";
+        if (cpConfirmPasswordError) cpConfirmPasswordError.textContent = "";
+        showCpAlert("");
+    }
+
+    function resetPasswordVisibilityToggles() {
+        changePasswordModal?.querySelectorAll(".btn-toggle-pw").forEach((btn) => {
+            const targetId = btn.dataset.target;
+            const input = targetId ? document.getElementById(targetId) : null;
+            if (input) input.type = "password";
+            const icon = btn.querySelector("i");
+            if (icon) icon.className = "fa-solid fa-eye";
+        });
+    }
+
+    function updatePasswordStrength(pw) {
+        if (!cpStrengthFill || !cpStrengthText) return;
+        if (!pw) {
+            cpStrengthFill.style.width = "0%";
+            cpStrengthFill.style.background = "transparent";
+            cpStrengthText.textContent = "Use at least 8 characters with letters & numbers";
+            cpStrengthText.style.color = "var(--text-muted)";
+            return;
+        }
+        if (pw.length < 8) {
+            cpStrengthFill.style.width = "25%";
+            cpStrengthFill.style.background = "#ff2a85";
+            cpStrengthText.textContent = `Too short (${pw.length}/8 characters minimum)`;
+            cpStrengthText.style.color = "#ff6ba9";
+            return;
+        }
+        let score = 1;
+        if (pw.length >= 12) score++;
+        if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+        if (/\d/.test(pw)) score++;
+        if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+        if (score <= 2) {
+            cpStrengthFill.style.width = "55%";
+            cpStrengthFill.style.background = "#38bdf8";
+            cpStrengthText.textContent = "Fair password strength";
+            cpStrengthText.style.color = "#38bdf8";
+        } else if (score === 3) {
+            cpStrengthFill.style.width = "80%";
+            cpStrengthFill.style.background = "#9d4edd";
+            cpStrengthText.textContent = "Good password strength";
+            cpStrengthText.style.color = "#c084fc";
+        } else {
+            cpStrengthFill.style.width = "100%";
+            cpStrengthFill.style.background = "linear-gradient(90deg, #00f5d4, #38bdf8)";
+            cpStrengthText.textContent = "Strong neon-grade password";
+            cpStrengthText.style.color = "#00f5d4";
+        }
+    }
+
+    function setChangePasswordStep(step) {
+        clearCpErrors();
+        const isStep2 = step === 2 && !!verifiedOldPassword;
+
+        if (cpStepVerify) cpStepVerify.style.display = isStep2 ? "none" : "block";
+        if (cpStepNew) cpStepNew.style.display = isStep2 ? "block" : "none";
+        if (cpFooterStep1) cpFooterStep1.style.display = isStep2 ? "none" : "flex";
+        if (cpFooterStep2) cpFooterStep2.style.display = isStep2 ? "flex" : "none";
+
+        if (cpStepBadge1) {
+            cpStepBadge1.classList.toggle("active", !isStep2);
+            cpStepBadge1.classList.toggle("done", isStep2);
+        }
+        if (cpStepLine) cpStepLine.classList.toggle("done", isStep2);
+        if (cpStepBadge2) cpStepBadge2.classList.toggle("active", isStep2);
+
+        setTimeout(() => {
+            if (isStep2) cpNewPassword?.focus();
+            else cpOldPassword?.focus();
+        }, 60);
+    }
+
+    function openChangePasswordModal() {
+        if (!requireLogin("Please log in to change your password")) return;
+        userInfoCard?.classList.remove("open");
+        userProfileBtn?.classList.remove("active");
+
+        verifiedOldPassword = "";
+        if (cpOldPassword) cpOldPassword.value = "";
+        if (cpNewPassword) cpNewPassword.value = "";
+        if (cpConfirmPassword) cpConfirmPassword.value = "";
+        if (cpAccountEmail) cpAccountEmail.textContent = currentUserEmail || "";
+        resetPasswordVisibilityToggles();
+        updatePasswordStrength("");
+        setChangePasswordStep(1);
+        changePasswordModal?.classList.add("active");
+    }
+
+    function closeChangePasswordModal() {
+        changePasswordModal?.classList.remove("active");
+        verifiedOldPassword = "";
+        if (cpOldPassword) cpOldPassword.value = "";
+        if (cpNewPassword) cpNewPassword.value = "";
+        if (cpConfirmPassword) cpConfirmPassword.value = "";
+        resetPasswordVisibilityToggles();
+        updatePasswordStrength("");
+        clearCpErrors();
+    }
+
+    async function verifyCurrentPasswordIdentity() {
+        clearCpErrors();
+        const oldPass = cpOldPassword?.value || "";
+        if (!oldPass) {
+            if (cpOldPasswordError) cpOldPasswordError.textContent = "Please enter your current password.";
+            cpOldPassword?.focus();
+            return;
+        }
+
+        if (verifyIdentityBtn) {
+            verifyIdentityBtn.disabled = true;
+            verifyIdentityBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Verifying...`;
+        }
+
+        try {
+            await api(`/users/${encodeURIComponent(currentUserId)}/verify-password`, jsonOpts("POST", {
+                oldPassword: oldPass,
+                email: currentUserEmail
+            }));
+            verifiedOldPassword = oldPass;
+            setChangePasswordStep(2);
+        } catch (err) {
+            const msg = err.message || "Current password is incorrect.";
+            if (cpOldPasswordError) cpOldPasswordError.textContent = msg;
+            else showCpAlert(msg, "error");
+            cpOldPassword?.focus();
+            cpOldPassword?.select();
+        } finally {
+            if (verifyIdentityBtn) {
+                verifyIdentityBtn.disabled = false;
+                verifyIdentityBtn.innerHTML = `<i class="fa-solid fa-user-check"></i> Confirm Identity`;
+            }
+        }
+    }
+
+    async function submitChangePassword() {
+        clearCpErrors();
+        if (!verifiedOldPassword) {
+            setChangePasswordStep(1);
+            showCpAlert("Please confirm your current password first.", "error");
+            return;
+        }
+
+        const newPassword = cpNewPassword?.value || "";
+        const confirmPassword = cpConfirmPassword?.value || "";
+
+        if (newPassword.length < 8) {
+            if (cpNewPasswordError) cpNewPasswordError.textContent = "New password must be at least 8 characters.";
+            cpNewPassword?.focus();
+            return;
+        }
+        if (newPassword === verifiedOldPassword) {
+            if (cpNewPasswordError) cpNewPasswordError.textContent = "New password must be different from your current password.";
+            cpNewPassword?.focus();
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            if (cpConfirmPasswordError) cpConfirmPasswordError.textContent = "New passwords do not match.";
+            cpConfirmPassword?.focus();
+            return;
+        }
+
+        if (confirmChangePasswordBtn) {
+            confirmChangePasswordBtn.disabled = true;
+            confirmChangePasswordBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Updating...`;
+        }
+
+        try {
+            await api(`/users/${encodeURIComponent(currentUserId)}/change-password`, jsonOpts("POST", {
+                oldPassword: verifiedOldPassword,
+                newPassword,
+                confirmPassword,
+                email: currentUserEmail
+            }));
+            closeChangePasswordModal();
+            showToast("Password changed successfully!", "fa-shield-halved");
+        } catch (err) {
+            const msg = err.message || "Failed to update password.";
+            if (err.field === "oldPassword") {
+                verifiedOldPassword = "";
+                setChangePasswordStep(1);
+                if (cpOldPasswordError) cpOldPasswordError.textContent = msg;
+            } else if (err.field === "confirmPassword") {
+                if (cpConfirmPasswordError) cpConfirmPasswordError.textContent = msg;
+            } else if (err.field === "newPassword") {
+                if (cpNewPasswordError) cpNewPasswordError.textContent = msg;
+            } else {
+                showCpAlert(msg, "error");
+            }
+        } finally {
+            if (confirmChangePasswordBtn) {
+                confirmChangePasswordBtn.disabled = false;
+                confirmChangePasswordBtn.innerHTML = `<i class="fa-solid fa-key"></i> Update Password`;
+            }
+        }
+    }
+
+    cardChangePasswordBtn?.addEventListener("click", openChangePasswordModal);
+    closeChangePasswordModalBtn?.addEventListener("click", closeChangePasswordModal);
+    cancelChangePasswordBtn?.addEventListener("click", closeChangePasswordModal);
+    changePasswordModal?.addEventListener("click", (e) => {
+        if (e.target === changePasswordModal) closeChangePasswordModal();
+    });
+    verifyIdentityBtn?.addEventListener("click", verifyCurrentPasswordIdentity);
+    cpBackToVerifyBtn?.addEventListener("click", () => {
+        verifiedOldPassword = "";
+        if (cpNewPassword) cpNewPassword.value = "";
+        if (cpConfirmPassword) cpConfirmPassword.value = "";
+        updatePasswordStrength("");
+        setChangePasswordStep(1);
+    });
+    confirmChangePasswordBtn?.addEventListener("click", submitChangePassword);
+
+    cpOldPassword?.addEventListener("input", clearCpErrors);
+    cpNewPassword?.addEventListener("input", () => {
+        clearCpErrors();
+        updatePasswordStrength(cpNewPassword.value);
+    });
+    cpConfirmPassword?.addEventListener("input", clearCpErrors);
+
+    cpOldPassword?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            verifyCurrentPasswordIdentity();
+        }
+    });
+    [cpNewPassword, cpConfirmPassword].forEach((input) => {
+        input?.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                submitChangePassword();
+            }
+        });
+    });
+
+    changePasswordModal?.querySelectorAll(".btn-toggle-pw").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const targetId = btn.dataset.target;
+            const input = targetId ? document.getElementById(targetId) : null;
+            if (!input) return;
+            const isHidden = input.type === "password";
+            input.type = isHidden ? "text" : "password";
+            const icon = btn.querySelector("i");
+            if (icon) icon.className = isHidden ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
+        });
     });
 
     function updateUserCardStats() {
@@ -250,7 +553,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             title: "Cyberpunk 2099 Night Drive",
             tag: "Darksynth",
             subtitle: "Futuristic basslines, neon arpeggios & cyber beats",
-            bg: "linear-gradient(135deg, #ec4899 0%, #3b82f6 100%)",
+            bg: "linear-gradient(135deg, #ff2a85 0%, #9d4edd 52%, #1d4ed8 100%)",
             filterMood: "synth"
         },
         {
@@ -258,7 +561,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             title: "Midnight Lofi Study",
             tag: "Chill Vibe",
             subtitle: "Soft tape crackle, gentle chords & calm textures",
-            bg: "linear-gradient(135deg, #f59e0b 0%, #8b5cf6 100%)",
+            bg: "linear-gradient(135deg, #38bdf8 0%, #6366f1 55%, #9d4edd 100%)",
             filterMood: "chill"
         },
         {
@@ -266,7 +569,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             title: "High Voltage Power",
             tag: "Bass Heavy",
             subtitle: "Maximum BPM drop, heavy sub-bass & power flow",
-            bg: "linear-gradient(135deg, #10b981 0%, #064e3b 100%)",
+            bg: "linear-gradient(135deg, #00f5d4 0%, #0ea5e9 52%, #0f172a 100%)",
             filterMood: "trending"
         },
         {
@@ -274,7 +577,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             title: "Deep Ambient Spatial Flow",
             tag: "Spatial Flow",
             subtitle: "Ethereal pads, acoustic depth & mind concentration",
-            bg: "linear-gradient(135deg, #6366f1 0%, #1e1b4b 100%)",
+            bg: "linear-gradient(135deg, #9d4edd 0%, #ff2a85 52%, #090a1a 100%)",
             filterMood: "all"
         }
     ];
@@ -304,7 +607,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 : TRACKS[0];
 
             if (heroTrack) {
-                heroBanner.style.backgroundImage = `linear-gradient(135deg, rgba(20, 20, 25, 0.85) 0%, rgba(79, 70, 229, 0.75) 100%), url('${escapeHtml(heroTrack.cover)}')`;
+                heroBanner.style.backgroundImage = `linear-gradient(135deg, rgba(5, 5, 11, 0.92) 0%, rgba(28, 12, 56, 0.8) 55%, rgba(0, 245, 212, 0.25) 100%), url('${escapeHtml(heroTrack.cover)}')`;
                 heroBanner.style.backgroundSize = "cover";
                 heroBanner.style.backgroundPosition = "center";
                 document.getElementById("heroTitle").textContent = heroTrack.title;
@@ -1346,7 +1649,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const title = (uploadSongTitle?.value || "").trim() || currentSelectedAudioFile.name.replace(/\.[^/.]+$/, "");
-        const artist = (uploadSongArtist?.value || "").trim() || (state.isCloudUploadMode ? "SoundPulse Artist" : "Unknown Artist");
+        const artist = (uploadSongArtist?.value || "").trim() || (state.isCloudUploadMode ? "Sound Pulse Artist" : "Unknown Artist");
 
         confirmUploadBtn.disabled = true;
         confirmUploadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
@@ -1629,7 +1932,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: track.title,
                 artist: track.artist,
-                album: track.album || "SoundPulse",
+                album: track.album || "Sound Pulse",
                 artwork: [
                     { src: track.cover, sizes: '96x96',   type: 'image/jpeg' },
                     { src: track.cover, sizes: '128x128', type: 'image/jpeg' },
@@ -2350,11 +2653,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 const grad = ctx.createLinearGradient(0, y, 0, height);
                 if (state.isPlaying) {
-                    grad.addColorStop(0, "#1ed760");
-                    grad.addColorStop(1, "#8b5cf6");
+                    grad.addColorStop(0, "#00f5d4");
+                    grad.addColorStop(0.55, "#9d4edd");
+                    grad.addColorStop(1, "#ff2a85");
+                    ctx.shadowColor = "rgba(0, 245, 212, 0.55)";
+                    ctx.shadowBlur = 10;
                 } else {
-                    grad.addColorStop(0, "rgba(30, 215, 96, 0.4)");
-                    grad.addColorStop(1, "rgba(139, 92, 246, 0.4)");
+                    grad.addColorStop(0, "rgba(0, 245, 212, 0.35)");
+                    grad.addColorStop(1, "rgba(157, 78, 221, 0.3)");
+                    ctx.shadowColor = "transparent";
+                    ctx.shadowBlur = 0;
                 }
 
                 ctx.fillStyle = grad;
@@ -2365,6 +2673,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 } else {
                     ctx.fillRect(x, y, barWidth, barHeight);
                 }
+                ctx.shadowBlur = 0;
             }
 
             visualizerAnimationId = requestAnimationFrame(renderFrame);
@@ -2622,6 +2931,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && changePasswordModal?.classList.contains("active")) {
+            closeChangePasswordModal();
+            return;
+        }
+
         if (["input", "textarea"].includes(document.activeElement?.tagName.toLowerCase())) return;
 
         if (e.key === "Escape") {
@@ -2629,6 +2943,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             closeUploadModal();
             closeCreatePlaylistModal();
             closeEditPlaylistModal();
+            closeChangePasswordModal();
             closeSleepTimerModal();
             closeShortcutsModal();
             closeTrackContextMenu();

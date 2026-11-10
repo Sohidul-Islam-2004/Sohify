@@ -4,19 +4,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SoundPulse · Sohify Player</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Sound Pulse Player</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/Dashboard/style.css">
 
     <!-- Supabase JS Client for Cloud Audio & Cover Artwork Storage -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
+    <!-- NEON AMBIENT BACKDROP & PERSPECTIVE CYBER GRID -->
+    <div class="cyber-grid" aria-hidden="true"></div>
+    <div class="neon-ambient-backdrop" aria-hidden="true">
+        <div class="ambient-glow glow-cyan"></div>
+        <div class="ambient-glow glow-magenta"></div>
+        <div class="ambient-glow glow-violet"></div>
+    </div>
+
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <div class="drop-overlay" id="dropOverlay" style="display: none;">
@@ -34,8 +43,10 @@
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <a href="/Dashboard" class="brand-logo">
-                    <i class="fa-solid fa-compact-disc rotating-logo"></i>
-                    <h2>SoundPulse</h2>
+                    <span class="brand-icon" aria-hidden="true">
+                        <img src="/favicon.svg" alt="" class="brand-logo-svg">
+                    </span>
+                    <h2>Sound <span class="neon-word">Pulse</span></h2>
                 </a>
                 <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close Menu">
                     <i class="fa-solid fa-xmark"></i>
@@ -73,6 +84,14 @@
                     </button>
                 </div>
                 <ul class="nav-list" id="playlistNavList"></ul>
+            </div>
+
+            <div class="sidebar-footer">
+                <a href="/Terms" target="_blank" rel="noopener noreferrer" class="sidebar-legal-link">
+                    <i class="fa-solid fa-file-contract"></i>
+                    <span>Terms &amp; Conditions</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square external-icon"></i>
+                </a>
             </div>
         </aside>
 
@@ -144,10 +163,18 @@
                             </div>
 
                             <div class="user-card-footer">
+                                <button class="btn-card-action" id="cardChangePasswordBtn" style="display: none;">
+                                    <i class="fa-solid fa-key"></i>
+                                    <span>Change Password</span>
+                                </button>
                                 <button class="btn-card-logout" id="cardLogoutBtn">
                                     <i class="fa-solid fa-right-from-bracket"></i>
                                     <span>Log Out</span>
                                 </button>
+                                <a href="/Terms" target="_blank" rel="noopener noreferrer" class="card-legal-link">
+                                    <i class="fa-solid fa-scale-balanced"></i>
+                                    <span>Terms &amp; Conditions</span>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -160,7 +187,7 @@
                 <div id="homeViewContainer">
                     <!-- QUICK MOOD & GENRE FILTER PILLS -->
                     <div class="mood-pills-bar" id="moodPillsBar">
-                        <button class="mood-pill active" data-mood="all"><i class="fa-solid fa-sparkles"></i> All Sounds</button>
+                        <button class="mood-pill active" data-mood="all"><i class="fa-solid fa-layer-group"></i> All Sounds</button>
                         <button class="mood-pill" data-mood="trending"><i class="fa-solid fa-fire"></i> Trending</button>
                         <button class="mood-pill" data-mood="synth"><i class="fa-solid fa-bolt"></i> Synth & Electronic</button>
                         <button class="mood-pill" data-mood="chill"><i class="fa-solid fa-mug-hot"></i> Chill & Lofi</button>
@@ -206,7 +233,7 @@
                         <div class="section-title-row">
                             <div class="title-with-badge">
                                 <h3>Curated Soundscapes</h3>
-                                <span class="view-pill" style="background: rgba(139, 92, 246, 0.2); color: #a78bfa;">Smart Vibes</span>
+                                <span class="view-pill view-pill-vibes">Smart Vibes</span>
                             </div>
                             <p style="font-size: 13px; color: var(--text-muted);">Hand-picked dynamic soundscapes for every mood</p>
                         </div>
@@ -268,7 +295,7 @@
                             <span class="view-pill" id="viewFilterPill" style="display: none;">Filtered</span>
                         </div>
                         <div class="section-actions" id="tracklistActions">
-                            <button class="btn-text-action" id="deleteCurrentPlaylistBtn" style="display: none; color: #ff5252;" title="Delete this playlist">
+                            <button class="btn-text-action btn-delete-pl-inline" id="deleteCurrentPlaylistBtn" style="display: none;" title="Delete this playlist">
                                 <i class="fa-solid fa-trash-can"></i> Delete Playlist
                             </button>
                             <button class="btn-text-action" id="playAllBtn" title="Play all listed tracks">
@@ -706,8 +733,102 @@
         </div>
     </div>
 
+    <!-- CHANGE PASSWORD MODAL (Requires Old Password Identity Confirmation) -->
+    <div class="modal-overlay" id="changePasswordModal">
+        <div class="modal-box" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-shield-halved"></i> Change Password</h3>
+                <button class="modal-close-btn" id="closeChangePasswordModalBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="margin-bottom: 18px;">
+                <div class="cp-steps">
+                    <div class="cp-step active" id="cpStepBadge1">
+                        <span class="cp-step-num">1</span>
+                        <span>Confirm Identity</span>
+                    </div>
+                    <div class="cp-step-line" id="cpStepLine"></div>
+                    <div class="cp-step" id="cpStepBadge2">
+                        <span class="cp-step-num">2</span>
+                        <span>New Password</span>
+                    </div>
+                </div>
+
+                <div class="cp-account-chip">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <span>Account: <strong id="cpAccountEmail">listener@soundpulse.app</strong></span>
+                </div>
+
+                <div class="cp-alert" id="cpAlertBanner" style="display: none;"></div>
+
+                <!-- STEP 1: Verify Old Password -->
+                <div id="cpStepVerify">
+                    <p class="cp-helper-text">
+                        Before changing your password, please enter your current password to confirm your identity.
+                    </p>
+                    <div class="form-group">
+                        <label for="cpOldPassword">Current Password *</label>
+                        <div class="password-input-wrap">
+                            <input type="password" id="cpOldPassword" placeholder="Enter current password" autocomplete="current-password">
+                            <button type="button" class="btn-toggle-pw" data-target="cpOldPassword" aria-label="Show or hide current password">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <span class="cp-field-error" id="cpOldPasswordError"></span>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Enter & Confirm New Password (Unlocked after Step 1) -->
+                <div id="cpStepNew" style="display: none;">
+                    <div class="cp-verified-pill">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span>Identity confirmed via current password</span>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 14px;">
+                        <label for="cpNewPassword">New Password *</label>
+                        <div class="password-input-wrap">
+                            <input type="password" id="cpNewPassword" placeholder="Minimum 8 characters" autocomplete="new-password">
+                            <button type="button" class="btn-toggle-pw" data-target="cpNewPassword" aria-label="Show or hide new password">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="cp-strength-bar"><div class="cp-strength-fill" id="cpStrengthFill"></div></div>
+                        <span class="cp-strength-text" id="cpStrengthText">Use at least 8 characters with letters &amp; numbers</span>
+                        <span class="cp-field-error" id="cpNewPasswordError"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cpConfirmPassword">Confirm New Password *</label>
+                        <div class="password-input-wrap">
+                            <input type="password" id="cpConfirmPassword" placeholder="Re-enter new password" autocomplete="new-password">
+                            <button type="button" class="btn-toggle-pw" data-target="cpConfirmPassword" aria-label="Show or hide confirm password">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <span class="cp-field-error" id="cpConfirmPasswordError"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" id="cpFooterStep1">
+                <button type="button" class="btn btn-glass" id="cancelChangePasswordBtn">Cancel</button>
+                <button type="button" class="btn btn-green" id="verifyIdentityBtn">
+                    <i class="fa-solid fa-user-check"></i> Confirm Identity
+                </button>
+            </div>
+            <div class="modal-footer" id="cpFooterStep2" style="display: none;">
+                <button type="button" class="btn btn-glass" id="cpBackToVerifyBtn">
+                    <i class="fa-solid fa-arrow-left"></i> Back
+                </button>
+                <button type="button" class="btn btn-green" id="confirmChangePasswordBtn">
+                    <i class="fa-solid fa-key"></i> Update Password
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast-container" id="toastContainer"></div>
     <audio id="audioElement" preload="auto" crossorigin="anonymous"></audio>
-    <script src="script.js"></script>
+    <script src="/Dashboard/script.js"></script>
 </body>
 </html>
