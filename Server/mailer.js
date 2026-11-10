@@ -37,7 +37,7 @@ function createTransporter() {
 
 /**
  * Generates an elegant, high-contrast, dark-mode HTML email template
- * matching the Sohify / SoundPulse cyberpunk and neon music design.
+ * matching the Sound Pulse cyberpunk neon cyan & magenta music design.
  */
 function generateEmailHtml(fullName, code) {
     const safeName = (fullName || "Music Lover").replace(/[<>&"]/g, "");
@@ -47,53 +47,54 @@ function generateEmailHtml(fullName, code) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Confirm Your Email - Sohify</title>
+  <title>Confirm Your Email - Sound Pulse</title>
   <style>
     body {
       margin: 0;
       padding: 0;
-      background-color: #0b0b0f;
+      background-color: #05050b;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       color: #ffffff;
       -webkit-font-smoothing: antialiased;
     }
     .wrapper {
       width: 100%;
-      background-color: #0b0b0f;
+      background-color: #05050b;
       padding: 40px 16px;
     }
     .card {
       max-width: 540px;
       margin: 0 auto;
-      background: #15151c;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #0d0e1a;
+      border: 1px solid rgba(0, 245, 212, 0.25);
       border-radius: 20px;
       overflow: hidden;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 245, 212, 0.12);
     }
     .header {
-      background: linear-gradient(135deg, #1ed760 0%, #10b981 100%);
-      padding: 30px 24px;
+      background: linear-gradient(135deg, #00f5d4 0%, #38bdf8 45%, #9d4edd 85%, #ff2a85 100%);
+      padding: 32px 24px;
       text-align: center;
     }
     .header h1 {
       margin: 0;
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 900;
       letter-spacing: -0.5px;
-      color: #000000;
+      color: #05050b;
+      text-transform: uppercase;
     }
     .header p {
-      margin: 4px 0 0;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 2px;
+      margin: 5px 0 0;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2.5px;
       text-transform: uppercase;
-      color: rgba(0, 0, 0, 0.75);
+      color: rgba(5, 5, 11, 0.85);
     }
     .body {
       padding: 36px 30px;
-      background: #15151c;
+      background: #0d0e1a;
     }
     .greeting {
       font-size: 20px;
@@ -104,24 +105,25 @@ function generateEmailHtml(fullName, code) {
     .text {
       font-size: 15px;
       line-height: 1.6;
-      color: #a0a0b2;
+      color: #a6aec8;
       margin: 0 0 24px;
     }
     .code-box {
-      background: #0f0f13;
-      border: 2px dashed #1ed760;
+      background: #06070e;
+      border: 2px dashed #00f5d4;
       border-radius: 14px;
       padding: 24px 16px;
       text-align: center;
       margin: 28px 0;
+      box-shadow: inset 0 0 24px rgba(0, 245, 212, 0.08);
     }
     .code-label {
       font-size: 11px;
       font-weight: 800;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: #1ed760;
-      margin-bottom: 8px;
+      color: #00f5d4;
+      margin-bottom: 10px;
     }
     .code-digits {
       font-family: 'Courier New', Courier, monospace;
@@ -134,28 +136,28 @@ function generateEmailHtml(fullName, code) {
     }
     .code-expiry {
       font-size: 12px;
-      color: #71717a;
+      color: #7c85a2;
       margin-top: 10px;
     }
     .callout {
-      background: rgba(139, 92, 246, 0.1);
-      border-left: 4px solid #8b5cf6;
+      background: rgba(255, 42, 133, 0.08);
+      border-left: 4px solid #ff2a85;
       border-radius: 8px;
       padding: 14px 18px;
       margin-bottom: 24px;
       font-size: 13px;
       line-height: 1.5;
-      color: #c4b5fd;
+      color: #fbcfe8;
     }
     .footer {
-      background: #0f0f13;
+      background: #070811;
       padding: 24px 30px;
       text-align: center;
       border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
     .footer p {
       font-size: 12px;
-      color: #52525b;
+      color: #646b82;
       margin: 0 0 6px;
       line-height: 1.5;
     }
@@ -165,14 +167,14 @@ function generateEmailHtml(fullName, code) {
   <div class="wrapper">
     <div class="card">
       <div class="header">
-        <h1>Sohify</h1>
-        <p>SoundPulse · Lossless Audio Streaming</p>
+        <h1>Sound Pulse</h1>
+        <p>Neon Hi-Fi · Audio Streaming</p>
       </div>
       <div class="body">
         <h2 class="greeting">Hey ${safeName},</h2>
         <p class="text">
-          Welcome to Sohify! We're excited to have you on board.
-          Please enter the following 6-digit confirmation code on the sign-up page to verify that this is your original email address and activate your account.
+          Welcome to Sound Pulse! We're excited to tune you in.
+          Please enter the following 6-digit confirmation code on the sign-up page to verify your original email address and activate your account.
         </p>
 
         <div class="code-box">
@@ -182,16 +184,16 @@ function generateEmailHtml(fullName, code) {
         </div>
 
         <div class="callout">
-          <strong>Security Note:</strong> Never share this code with anyone. Sohify support will never ask you for your confirmation code.
+          <strong>Security Note:</strong> Never share this code with anyone. Sound Pulse support will never ask you for your confirmation code.
         </div>
 
         <p class="text" style="margin-bottom: 0;">
-          If you did not request this email or never created an account on Sohify, no action is needed — you can safely ignore this message.
+          If you did not request this email or never created an account on Sound Pulse, no action is needed — you can safely ignore this message.
         </p>
       </div>
       <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} Sohify · SoundPulse. All rights reserved.</p>
-        <p>Stream endless music, lossless soundscapes & curated mixes.</p>
+        <p>&copy; ${new Date().getFullYear()} Sound Pulse Music. All rights reserved.</p>
+        <p>Stream endless music, cyber soundscapes & curated neon mixes.</p>
       </div>
     </div>
   </div>
@@ -212,7 +214,7 @@ function generateEmailHtml(fullName, code) {
  */
 async function sendVerificationEmail(email, fullName, code) {
     const transporter = createTransporter();
-    const sender = process.env.EMAIL_USER || process.env.GMAIL_USER || "no-reply@sohify.app";
+    const sender = process.env.EMAIL_USER || process.env.GMAIL_USER || "no-reply@soundpulse.app";
 
     if (!transporter) {
         console.log("\n=======================================================");
@@ -232,10 +234,10 @@ async function sendVerificationEmail(email, fullName, code) {
     }
 
     const mailOptions = {
-        from: `"Sohify · SoundPulse" <${process.env.EMAIL_USER || sender}>`,
+        from: `"Sound Pulse" <${process.env.EMAIL_USER || sender}>`,
         to: email,
-        subject: `${code} is your Sohify confirmation code`,
-        text: `Hey ${fullName || "Listener"},\n\nYour confirmation code is: ${code}\n\nThis code is valid for 15 minutes. Enter it on the sign-up page to verify your email and activate your account.\n\nIf you did not create a Sohify account, please ignore this email.\n\n— The Sohify Team`,
+        subject: `${code} is your Sound Pulse confirmation code`,
+        text: `Hey ${fullName || "Listener"},\n\nYour Sound Pulse confirmation code is: ${code}\n\nThis code is valid for 15 minutes. Enter it on the sign-up page to verify your email and activate your account.\n\nIf you did not create a Sound Pulse account, please ignore this email.\n\n— The Sound Pulse Team`,
         html: generateEmailHtml(fullName, code)
     };
 

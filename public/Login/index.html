@@ -3,29 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sign In – SoundPulse · Sohify</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Sign In – Sound Pulse</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
-    <!-- FIXED: Links login.css, not style.css -->
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="/Login/style.css" />
   </head>
 
   <body>
-    <!-- ANIMATED EQUALIZER BACKGROUND -->
-    <div class="equalizer-bg" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
+    <!-- COSMIC GRID, STARFIELD & HORIZON AURORA -->
+    <div class="cyber-grid" aria-hidden="true"></div>
+    <div class="cosmic-stars" aria-hidden="true">
       <span></span><span></span><span></span><span></span><span></span>
       <span></span><span></span><span></span><span></span><span></span>
     </div>
+    <div class="cosmic-horizon" aria-hidden="true"></div>
 
     <!-- AMBIENT ORBS -->
     <div class="bg-orbs" aria-hidden="true">
@@ -34,41 +34,15 @@
       <div class="orb orb-3"></div>
     </div>
 
-    <!-- FLOATING MUSIC NOTES -->
-    <div class="music-notes" aria-hidden="true">
-      <i class="fa-solid fa-music note note-1"></i>
-      <i class="fa-solid fa-headphones note note-2"></i>
-      <i class="fa-solid fa-compact-disc note note-3"></i>
-      <i class="fa-solid fa-record-vinyl note note-4"></i>
-      <i class="fa-solid fa-microphone note note-5"></i>
-      <i class="fa-solid fa-sliders note note-6"></i>
-    </div>
-
     <!-- SIGN IN LAYOUT -->
     <div class="auth-layout reverse">
       <aside class="auth-visual">
         <div class="vinyl-stage">
+          <div class="eclipse-ring eclipse-ring-outer" aria-hidden="true"></div>
+          <div class="eclipse-ring eclipse-ring-inner" aria-hidden="true"></div>
           <div class="vinyl">
             <div class="vinyl-label">
               <i class="fa-solid fa-compact-disc"></i>
-            </div>
-          </div>
-
-          <div class="now-playing-card">
-            <div class="np-art">
-              <img
-                src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200&auto=format&fit=crop"
-                alt="Album"
-              />
-              <div class="np-pulse"></div>
-            </div>
-            <div class="np-info">
-              <span class="np-label">NOW PLAYING</span>
-              <strong>Get Lucky</strong>
-              <span class="np-artist">Daft Punk · Pharrell</span>
-            </div>
-            <div class="np-eq">
-              <span></span><span></span><span></span><span></span>
             </div>
           </div>
 
@@ -89,16 +63,16 @@
 
       <main class="auth-panel">
         <div class="auth-container">
-          <a href="/index.html" class="brand-mark">
-            <span class="brand-icon"
-              ><i class="fa-solid fa-compact-disc"></i
-            ></span>
-            <span class="brand-name">Sohify</span>
+          <a href="/" class="brand-mark">
+            <span class="brand-icon" aria-hidden="true">
+              <img src="/favicon.svg" alt="" class="brand-logo-svg" />
+            </span>
+            <span class="brand-name">Sound <span class="neon-word">Pulse</span></span>
           </a>
 
           <div class="music-badge">
             <i class="fa-solid fa-wave-square"></i>
-            <span>Your sound. Your vibe. Your Sohify.</span>
+            <span>Your sound. Your vibe. Sound Pulse.</span>
           </div>
 
           <h2>Welcome Back</h2>
@@ -159,10 +133,15 @@
           <p class="switch-prompt">
             Don't have an account? <a href="/Sign-Up">Sign up</a>
           </p>
+
+          <p class="legal-note">
+            By signing in, you agree to our
+            <a href="/Terms" class="accent-link">Terms &amp; Conditions</a>.
+          </p>
         </div>
       </main>
     </div>
 
-    <script src="script.js"></script>
+    <script src="/Login/script.js"></script>
   </body>
 </html>

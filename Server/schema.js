@@ -13,6 +13,8 @@ const userSchema = new mongoose.Schema(
         password: { type: String, required: true, minlength: 8 }, // bcrypt hash
         isAdmin: { type: Boolean, default: false },
         isEmailVerified: { type: Boolean, default: true },
+        termsAccepted: { type: Boolean, default: false },
+        termsAcceptedAt: { type: Date },
         avatarUrl: { type: String, default: "" },                 // Supabase URL
         likedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }],
         recentSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }],
@@ -54,6 +56,8 @@ const emailVerificationSchema = new mongoose.Schema(
         code: { type: String, required: true },
         fullName: { type: String, required: true, trim: true },
         password: { type: String, required: true }, // bcrypt hashed
+        termsAccepted: { type: Boolean, default: false },
+        termsAcceptedAt: { type: Date },
         attempts: { type: Number, default: 0 },
         createdAt: { type: Date, default: Date.now, expires: 900 } // TTL index: expires in 15 minutes
     },

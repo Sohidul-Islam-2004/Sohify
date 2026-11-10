@@ -26,6 +26,14 @@ const nameError = document.getElementById("nameError");
 const emailError = document.getElementById("emailError");
 const passwordError = document.getElementById("passwordError");
 const confirmPasswordError = document.getElementById("confirmPasswordError");
+const termsError = document.getElementById("termsError");
+
+// Terms modal elements
+const termsModal = document.getElementById("termsModal");
+const openTermsLink = document.getElementById("openTermsLink");
+const closeTermsModalBtn = document.getElementById("closeTermsModalBtn");
+const dismissTermsModalBtn = document.getElementById("dismissTermsModalBtn");
+const acceptTermsModalBtn = document.getElementById("acceptTermsModalBtn");
 
 // Step 2 inputs & controls
 const verifyTargetEmail = document.getElementById("verifyTargetEmail");
@@ -76,12 +84,61 @@ confirmPasswordInput.addEventListener("input", () => {
 
 emailInput.addEventListener("input", () => (emailError.textContent = ""));
 fullNameInput.addEventListener("input", () => (nameError.textContent = ""));
+if (termsCheckbox) {
+    termsCheckbox.addEventListener("change", () => {
+        if (termsError) termsError.textContent = "";
+    });
+}
+
+function openTermsModal() {
+    if (!termsModal) return;
+    termsModal.classList.add("active");
+    termsModal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+}
+
+function closeTermsModal() {
+    if (!termsModal) return;
+    termsModal.classList.remove("active");
+    termsModal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+}
+
+if (openTermsLink && termsModal) {
+    openTermsLink.addEventListener("click", (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        openTermsModal();
+    });
+}
+
+if (closeTermsModalBtn) closeTermsModalBtn.addEventListener("click", closeTermsModal);
+if (dismissTermsModalBtn) dismissTermsModalBtn.addEventListener("click", closeTermsModal);
+if (acceptTermsModalBtn) {
+    acceptTermsModalBtn.addEventListener("click", () => {
+        if (termsCheckbox) termsCheckbox.checked = true;
+        if (termsError) termsError.textContent = "";
+        closeTermsModal();
+        signupSubmitBtn?.focus();
+    });
+}
+if (termsModal) {
+    termsModal.addEventListener("click", (e) => {
+        if (e.target === termsModal) closeTermsModal();
+    });
+}
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && termsModal?.classList.contains("active")) {
+        closeTermsModal();
+    }
+});
 
 function clearErrors() {
     nameError.textContent = "";
     emailError.textContent = "";
     passwordError.textContent = "";
     confirmPasswordError.textContent = "";
+    if (termsError) termsError.textContent = "";
     if (verifyError) verifyError.textContent = "";
 }
 
@@ -92,6 +149,8 @@ function showFieldError(field, message) {
         email: emailError,
         password: passwordError,
         confirmPassword: confirmPasswordError,
+        terms: termsError,
+        acceptedTerms: termsError,
     };
     if (map[field]) {
         map[field].textContent = message;
@@ -180,7 +239,11 @@ signupForm.addEventListener("submit", async (e) => {
         return (confirmPasswordError.textContent = "Passwords do not match.");
     }
     if (!termsCheckbox.checked) {
-        return alert("Please accept the Terms & Conditions to proceed.");
+        if (termsError) {
+            termsError.textContent = "Please agree to the Terms & Conditions to create your account.";
+        }
+        termsCheckbox.focus();
+        return;
     }
 
     const originalText = signupSubmitBtn.innerHTML;
@@ -191,7 +254,13 @@ signupForm.addEventListener("submit", async (e) => {
         const res = await fetch(`${API_BASE}/send-verification`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fullName, email, password, confirmPassword }),
+            body: JSON.stringify({
+                fullName,
+                email,
+                password,
+                confirmPassword,
+                acceptedTerms: Boolean(termsCheckbox.checked)
+            }),
         });
 
         const data = await res.json();
@@ -335,7 +404,7 @@ verifyForm.addEventListener("submit", async (e) => {
         }
 
         // Success state
-        showAlert("🎉 <strong>Account Confirmed!</strong> Welcome to Sohify. Redirecting to your dashboard...", "success");
+        showAlert("🎉 <strong>Account Confirmed!</strong> Welcome to Sound Pulse. Redirecting to your dashboard...", "success");
 
         const user = data.data;
         const username = user.name || user.email.split("@")[0];

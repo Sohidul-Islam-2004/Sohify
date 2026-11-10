@@ -1,7 +1,7 @@
 {
-  "name": "sohify",
+  "name": "sound-pulse",
   "version": "1.0.0",
-  "description": "SoundPulse · Sohify Music Player",
+  "description": "Sound Pulse · Neon Lossless Music Streaming Player",
   "main": "Server/server.js",
   "scripts": {
     "start": "node Server/server.js",

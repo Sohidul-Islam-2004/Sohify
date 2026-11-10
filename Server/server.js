@@ -99,7 +99,7 @@ async function getUserOr404(userId, res) {
  */
 app.post("/api/users/send-verification", async (req, res) => {
     try {
-        const { fullName, email, password, confirmPassword } = req.body;
+        const { fullName, email, password, confirmPassword, acceptedTerms } = req.body;
         if (!fullName || !email || !password) {
             return res.status(400).json({ field: "fullName", message: "All fields are required." });
         }
@@ -116,6 +116,12 @@ app.post("/api/users/send-verification", async (req, res) => {
         }
         if (confirmPassword !== undefined && password !== confirmPassword) {
             return res.status(400).json({ field: "confirmPassword", message: "Passwords do not match." });
+        }
+        if (acceptedTerms !== true) {
+            return res.status(400).json({
+                field: "terms",
+                message: "You must agree to the Terms & Conditions to create an account."
+            });
         }
 
         // Check if an account already exists
@@ -144,6 +150,8 @@ app.post("/api/users/send-verification", async (req, res) => {
                 fullName: cleanName,
                 password: hashedPassword,
                 code,
+                termsAccepted: true,
+                termsAcceptedAt: new Date(),
                 attempts: 0,
                 createdAt: new Date(),
                 updatedAt: new Date()
@@ -255,7 +263,9 @@ app.post("/api/users/verify-and-register", async (req, res) => {
             name: pending.fullName,
             email: pending.email,
             password: pending.password,
-            isEmailVerified: true
+            isEmailVerified: true,
+            termsAccepted: Boolean(pending.termsAccepted),
+            termsAcceptedAt: pending.termsAcceptedAt || new Date()
         });
 
         await EmailVerification.deleteOne({ _id: pending._id });
@@ -317,6 +327,83 @@ app.post("/api/users/login", async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
+    }
+});
+
+/**
+ * Step 1: Confirm user identity by checking their current password.
+ */
+app.post("/api/users/:userId/verify-password", async (req, res) => {
+    try {
+        const user = await getUserOr404(req.params.userId, res);
+        if (!user) return;
+
+        const { oldPassword, email } = req.body;
+        if (!oldPassword) {
+            return res.status(400).json({ field: "oldPassword", message: "Current password is required to confirm your identity." });
+        }
+
+        if (email && String(email).toLowerCase().trim() !== user.email) {
+            return res.status(403).json({ field: "oldPassword", message: "Account identity mismatch." });
+        }
+
+        const isMatch = await bcrypt.compare(String(oldPassword), user.password);
+        if (!isMatch) {
+            return res.status(401).json({ field: "oldPassword", message: "Incorrect current password. Identity verification failed." });
+        }
+
+        res.json({ success: true, message: "Identity verified. You can now set a new password." });
+    } catch (err) {
+        res.status(500).json({ message: "Server error while verifying identity." });
+    }
+});
+
+/**
+ * Step 2: Change user password (strictly requires oldPassword identity verification).
+ */
+app.post("/api/users/:userId/change-password", async (req, res) => {
+    try {
+        const user = await getUserOr404(req.params.userId, res);
+        if (!user) return;
+
+        const { oldPassword, newPassword, confirmPassword, email } = req.body;
+        if (!oldPassword) {
+            return res.status(400).json({ field: "oldPassword", message: "Current password is required to confirm your identity." });
+        }
+        if (!newPassword) {
+            return res.status(400).json({ field: "newPassword", message: "Please enter a new password." });
+        }
+
+        if (email && String(email).toLowerCase().trim() !== user.email) {
+            return res.status(403).json({ field: "oldPassword", message: "Account identity mismatch." });
+        }
+
+        // Always confirm identity with old password before changing password
+        const isMatch = await bcrypt.compare(String(oldPassword), user.password);
+        if (!isMatch) {
+            return res.status(401).json({ field: "oldPassword", message: "Incorrect current password. Identity could not be verified." });
+        }
+
+        const newPassStr = String(newPassword);
+        if (newPassStr.length < 8) {
+            return res.status(400).json({ field: "newPassword", message: "New password must be at least 8 characters." });
+        }
+
+        if (confirmPassword !== undefined && newPassStr !== String(confirmPassword)) {
+            return res.status(400).json({ field: "confirmPassword", message: "New passwords do not match." });
+        }
+
+        if (String(oldPassword) === newPassStr) {
+            return res.status(400).json({ field: "newPassword", message: "New password must be different from your current password." });
+        }
+
+        user.password = await bcrypt.hash(newPassStr, 10);
+        await user.save();
+
+        res.json({ success: true, message: "Password updated successfully!" });
+    } catch (err) {
+        console.error("change-password error:", err);
+        res.status(500).json({ message: "Server error while updating password." });
     }
 });
 
@@ -561,7 +648,7 @@ app.put("/api/playlists/:playlistId/toggle-song", async (req, res) => {
 });
 
 /* ============================================================
-   HTML ROUTES (SPA-like navigation for Login, Sign-Up, Dashboard)
+   HTML ROUTES (SPA-like navigation for Login, Sign-Up, Dashboard, Terms)
    ============================================================ */
 app.get("/Login", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Login", "index.html")));
 app.get("/Login/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Login", "index.html")));
@@ -569,6 +656,8 @@ app.get("/Sign-Up", (req, res) => res.sendFile(path.join(__dirname, "..", "publi
 app.get("/Sign-Up/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Sign-Up", "index.html")));
 app.get("/Dashboard", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Dashboard", "index.html")));
 app.get("/Dashboard/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Dashboard", "index.html")));
+app.get("/Terms", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Terms", "index.html")));
+app.get("/Terms/", (req, res) => res.sendFile(path.join(__dirname, "..", "public", "Terms", "index.html")));
 
 /* ============================================================
    ERRORS
