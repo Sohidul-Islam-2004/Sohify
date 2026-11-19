@@ -3,489 +3,271 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#030014" />
+    <meta name="description" content="Sohify is a free music streaming web player. Stream the catalog, upload your own tracks to a private vault, and build playlists you can share." />
+    <meta property="og:title" content="Sohify – Stream your music, your way" />
+    <meta property="og:description" content="Free music streaming with a private vault for your own tracks and shareable playlists." />
+    <meta property="og:type" content="website" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Sound Pulse – Neon Hi-Fi Streaming</title>
+    <title>Sohify – Stream your music, your way</title>
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-
-    <!-- Font Awesome Icons -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-
-    <!-- Stylesheet -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="/style.css" />
   </head>
 
   <body>
-    <!-- COSMIC GRID, STARFIELD & HORIZON AURORA -->
-    <div class="cyber-grid" aria-hidden="true"></div>
-    <div class="cosmic-stars" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
-    <div class="cosmic-horizon" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="bg-glow" aria-hidden="true"></div>
 
-    <!-- AMBIENT ORBS -->
-    <div class="bg-orbs" aria-hidden="true">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
-
-    <!-- ================= 1. NAVIGATION BAR (REFLECT GLASS PILL) ================= -->
+    <!-- NAVBAR -->
     <header class="navbar">
       <div class="nav-container">
-        <a href="/" class="brand-mark">
-          <span class="brand-icon" aria-hidden="true">
-            <img src="/favicon.svg" alt="" class="brand-logo-svg" />
-          </span>
-          <span class="brand-name">Sound <span class="neon-word">Pulse</span></span>
+        <a href="/" class="brand-mark" aria-label="Sohify home">
+          <span class="brand-icon" aria-hidden="true"><img src="/favicon.svg" alt="" /></span>
+          <span class="brand-name">Sohify</span>
         </a>
 
-        <nav class="nav-links" id="navLinks">
-          <a href="#trending">Trending</a>
+        <nav class="nav-links" id="navLinks" aria-label="Main">
           <a href="#features">Features</a>
-          <a href="#pricing">Plans</a>
+          <a href="#moods">Moods</a>
+          <a href="#how">How it works</a>
           <a href="/Terms">Terms</a>
-          <a href="/Dashboard" class="nav-player-link">
-            <i class="fa-solid fa-wave-square"></i> Web Player
-          </a>
+          <a href="/Login" class="nav-mobile-only" data-guest>Log in</a>
         </nav>
 
         <div class="nav-actions">
-          <a href="/Login" class="btn-ghost">Log In</a>
-          <a href="/Sign-Up" class="btn-primary">
-            <span>Start Free</span>
-            <i class="fa-solid fa-arrow-right"></i>
-          </a>
-          <button
-            class="mobile-toggle"
-            id="mobileToggle"
-            aria-label="Toggle Menu"
-          >
+          <a href="/Login" class="btn-ghost" data-guest>Log in</a>
+          <a href="/Sign-Up" class="btn-primary" data-guest>Sign up free</a>
+          <a href="/Dashboard" class="btn-primary" data-member hidden><i class="fa-solid fa-play"></i> Open player</a>
+          <button class="mobile-toggle" id="mobileToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
             <i class="fa-solid fa-bars"></i>
           </button>
         </div>
       </div>
     </header>
 
-    <!-- ================= 2. COSMIC HERO SECTION ================= -->
-    <main>
-      <section class="hero-section">
-        <div class="container hero-centered">
-          <!-- Reflect-style Glowing Emblem Lockup before Main Title -->
-          <div class="hero-title-lockup">
-            <span class="hero-brand-emblem">
-              <img src="/favicon.svg" alt="Sound Pulse Logo" />
-            </span>
-            <div class="music-badge">
-              <i class="fa-solid fa-bolt"></i>
-              <span>Sound Pulse · Lossless Spatial Audio</span>
-            </div>
-          </div>
-
-          <h1 class="hero-heading">
-            Feel Every Beat in
-            <span class="text-gradient">Lossless Hi-Fi.</span>
-          </h1>
-
-          <p class="hero-subtitle">
-            Immerse yourself in over 100 million tracks, curated late-night
-            synthwave mixes, and an intelligent audio workspace crafted for deep
-            focus and pure sound.
-          </p>
-
-          <div class="hero-cta-group">
-            <a href="/Sign-Up" class="btn-hero-green">
-              <i class="fa-solid fa-play"></i> Get Started Free
-            </a>
-            <a href="/Dashboard" class="btn-hero-glass">
-              <i class="fa-solid fa-compass"></i> Launch Web Player
-            </a>
-          </div>
-
-          <div class="hero-stats">
-            <div class="stat-item">
-              <strong>100M+</strong>
-              <span>Lossless Tracks</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <strong>24-Bit</strong>
-              <span>Spatial Hi-Fi Audio</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <strong>0 Ads</strong>
-              <span>Uninterrupted Flow</span>
-            </div>
-          </div>
-
-          <!-- Reflect-Inspired Cosmic Sonic Portal Showcase -->
-          <div class="hero-visual">
-            <div class="cosmic-eclipse-stage">
-              <div class="eclipse-ring eclipse-ring-outer" aria-hidden="true"></div>
-              <div class="eclipse-ring eclipse-ring-inner" aria-hidden="true"></div>
-              <div class="vinyl">
-                <div class="vinyl-label">
-                  <i class="fa-solid fa-compact-disc"></i>
-                </div>
-              </div>
-              <div class="feature-pills">
-                <span class="pill"
-                  ><i class="fa-solid fa-infinity"></i> Unlimited Stream</span
-                >
-                <span class="pill"
-                  ><i class="fa-solid fa-wifi"></i> Smart Offline Vault</span
-                >
-                <span class="pill"
-                  ><i class="fa-solid fa-volume-high"></i> Spatial Hi-Fi</span
-                >
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= 3. TRENDING RELEASES SECTION ================= -->
-      <section class="trending-section" id="trending">
-        <div class="container">
-          <div class="section-header">
-            <div>
-              <span class="section-tag">Curated For You</span>
-              <h2>Trending on Sound Pulse</h2>
-            </div>
-            <a href="/Dashboard" class="view-all-link">
-              Explore Full Library <i class="fa-solid fa-arrow-right"></i>
-            </a>
-          </div>
-
-          <div class="cards-grid">
-            <div
-              class="music-card"
-              onclick="
-                previewTrack(
-                  'Acoustic Chill',
-                  'Soft guitar melodies & vocals',
-                  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop',
-                )
-              "
-            >
-              <div class="card-thumb">
-                <img
-                  src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop"
-                  alt="Acoustic Chill"
-                />
-                <button
-                  class="play-float-btn"
-                  aria-label="Open Acoustic Chill in Player"
-                >
-                  <i class="fa-solid fa-play"></i>
-                </button>
-              </div>
-              <h4 class="card-name">Acoustic Chill</h4>
-              <p class="card-desc">Soft guitar melodies &amp; soothing vocals</p>
-            </div>
-
-            <div
-              class="music-card"
-              onclick="
-                previewTrack(
-                  'Cyberpunk 2099',
-                  'Dark synthwave & driving basslines',
-                  'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop',
-                )
-              "
-            >
-              <div class="card-thumb">
-                <img
-                  src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop"
-                  alt="Cyberpunk 2099"
-                />
-                <button
-                  class="play-float-btn"
-                  aria-label="Open Cyberpunk 2099 in Player"
-                >
-                  <i class="fa-solid fa-play"></i>
-                </button>
-              </div>
-              <h4 class="card-name">Cyberpunk 2099</h4>
-              <p class="card-desc">Dark synthwave &amp; driving basslines</p>
-            </div>
-
-            <div
-              class="music-card"
-              onclick="
-                previewTrack(
-                  'Top Global 50',
-                  'The Weeknd, Daft Punk & more',
-                  'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&auto=format&fit=crop',
-                )
-              "
-            >
-              <div class="card-thumb">
-                <img
-                  src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&auto=format&fit=crop"
-                  alt="Top Global 50"
-                />
-                <button
-                  class="play-float-btn"
-                  aria-label="Open Top Global 50 in Player"
-                >
-                  <i class="fa-solid fa-play"></i>
-                </button>
-              </div>
-              <h4 class="card-name">Top Global 50</h4>
-              <p class="card-desc">The most streamed tracks right now</p>
-            </div>
-
-            <div
-              class="music-card"
-              onclick="
-                previewTrack(
-                  'Deep Focus Flow',
-                  'Ambient textures for high productivity',
-                  'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&auto=format&fit=crop',
-                )
-              "
-            >
-              <div class="card-thumb">
-                <img
-                  src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&auto=format&fit=crop"
-                  alt="Deep Focus Flow"
-                />
-                <button
-                  class="play-float-btn"
-                  aria-label="Open Deep Focus Flow in Player"
-                >
-                  <i class="fa-solid fa-play"></i>
-                </button>
-              </div>
-              <h4 class="card-name">Deep Focus Flow</h4>
-              <p class="card-desc">Ambient textures for high productivity</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= 4. FEATURES BENTO GRID ================= -->
-      <section class="features-section" id="features">
-        <div class="container">
-          <div class="section-header center">
-            <span class="section-tag">Built For Audiophiles</span>
-            <h2>Why Listeners Switch to Sound Pulse</h2>
-            <p class="section-sub">
-              Engineered for crystal-clear acoustics and zero-latency discovery
-              across every device.
+    <main id="main">
+      <!-- HERO -->
+      <section class="hero">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <span class="eyebrow"><i class="fa-solid fa-headphones"></i> Free web music player</span>
+            <h1>Your music.<br /><span class="accent">Your way.</span></h1>
+            <p class="hero-sub">
+              Stream the Sohify catalog, keep your own tracks in a private vault,
+              and build playlists you can share with a link. No ads, no clutter.
             </p>
+            <div class="hero-cta">
+              <a href="/Sign-Up" class="btn-hero" data-guest><i class="fa-solid fa-user-plus"></i> Create free account</a>
+              <a href="/Dashboard" class="btn-hero" data-member hidden><i class="fa-solid fa-play"></i> Continue listening</a>
+              <a href="/Dashboard" class="btn-hero-ghost"><i class="fa-solid fa-compass"></i> Browse as guest</a>
+            </div>
+            <ul class="hero-points">
+              <li><i class="fa-solid fa-check"></i> Free forever</li>
+              <li><i class="fa-solid fa-check"></i> Works on phone &amp; desktop</li>
+              <li><i class="fa-solid fa-check"></i> No credit card</li>
+            </ul>
+          </div>
+
+          <!-- Player preview (static illustration) -->
+          <div class="hero-visual" aria-hidden="true">
+            <div class="player-preview">
+              <div class="pp-cover">
+                <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop" alt="" />
+              </div>
+              <div class="pp-meta">
+                <strong>Night Drive</strong>
+                <span>Your private vault</span>
+              </div>
+              <div class="pp-progress"><span style="width: 38%"></span></div>
+              <div class="pp-times"><span>1:24</span><span>3:41</span></div>
+              <div class="pp-controls">
+                <i class="fa-solid fa-shuffle"></i>
+                <i class="fa-solid fa-backward-step"></i>
+                <span class="pp-play"><i class="fa-solid fa-pause"></i></span>
+                <i class="fa-solid fa-forward-step"></i>
+                <i class="fa-solid fa-repeat"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FEATURES -->
+      <section class="section" id="features">
+        <div class="container">
+          <div class="section-head">
+            <span class="section-tag">Features</span>
+            <h2>Everything you need to listen</h2>
+            <p>Simple tools that stay out of the way of the music.</p>
           </div>
 
           <div class="features-grid">
-            <div class="feature-card">
-              <div class="feature-icon violet">
-                <i class="fa-solid fa-wave-square"></i>
-              </div>
-              <h3>Lossless 24-Bit FLAC</h3>
-              <p>
-                Hear every breath, guitar fret, and studio detail with
-                uncompressed studio-master streaming.
-              </p>
-            </div>
-
-            <div class="feature-card">
-              <div class="feature-icon purple">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-              </div>
-              <h3>AI Sonic DJ</h3>
-              <p>
-                Dynamic playlists that adapt in real time to your listening
-                patterns, focus state, and mood.
-              </p>
-            </div>
-
-            <div class="feature-card">
-              <div class="feature-icon green">
-                <i class="fa-solid fa-cloud-arrow-down"></i>
-              </div>
-              <h3>Personal Audio Vault</h3>
-              <p>
-                Upload your private tracks and seamlessly stream your personal
-                library across web and mobile.
-              </p>
-            </div>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-lock"></i></div>
+              <h3>Private vault</h3>
+              <p>Upload MP3, WAV, FLAC, M4A or OGG files with cover art. Only you can see and play them.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-list"></i></div>
+              <h3>Playlists you can share</h3>
+              <p>Build playlists, add a cover and description, then make them public and share the link.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-heart"></i></div>
+              <h3>Likes &amp; history</h3>
+              <p>Like songs to save them, and jump back into anything you played recently.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-list-ol"></i></div>
+              <h3>Queue control</h3>
+              <p>Play next, add to queue, shuffle and repeat — the way a real player should work.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-moon"></i></div>
+              <h3>Sleep timer &amp; speed</h3>
+              <p>Fall asleep to music with a timer that fades out, or change playback speed from 0.5× to 2×.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-keyboard"></i></div>
+              <h3>Keyboard shortcuts</h3>
+              <p>Space to play, arrows to seek and change volume, S to shuffle — press <kbd>?</kbd> in the player.</p>
+            </article>
           </div>
         </div>
       </section>
 
-      <!-- ================= 5. PRICING PLANS ================= -->
-      <section class="pricing-section" id="pricing">
+      <!-- MOODS -->
+      <section class="section" id="moods">
         <div class="container">
-          <div class="section-header center">
-            <span class="section-tag">Simple Pricing</span>
-            <h2>Pick Your Sound Plan</h2>
-            <p class="section-sub">
-              Start free forever or unlock studio-grade audio with Pulse Pro.
-            </p>
+          <div class="section-head row">
+            <div>
+              <span class="section-tag">Moods</span>
+              <h2>Find your sound</h2>
+            </div>
+            <a href="/Dashboard" class="text-link">Open the player <i class="fa-solid fa-arrow-right"></i></a>
           </div>
 
-          <div class="pricing-grid">
-            <div class="price-card">
-              <div class="price-top">
-                <h3>Starter</h3>
-                <p class="price-desc">Everything you need to tune in.</p>
-                <div class="price-amount">
-                  <span class="currency">$0</span>
-                  <span class="period">/ forever</span>
-                </div>
+          <div class="cards-grid">
+            <a href="/Dashboard" class="music-card">
+              <div class="card-thumb">
+                <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop" alt="" loading="lazy" />
+                <span class="play-float"><i class="fa-solid fa-play"></i></span>
               </div>
-              <ul class="price-features">
-                <li><i class="fa-solid fa-check"></i> Access to 100M+ songs</li>
-                <li><i class="fa-solid fa-check"></i> Curated daily mixes</li>
-                <li>
-                  <i class="fa-solid fa-check"></i> Web &amp; mobile streaming
-                </li>
-              </ul>
-              <a href="/Sign-Up" class="btn-plan-outline"
-                >Create Free Account</a
-              >
-            </div>
-
-            <div class="price-card featured">
-              <span class="popular-badge">Most Popular</span>
-              <div class="price-top">
-                <h3>Pulse Pro</h3>
-                <p class="price-desc">Pure, uninterrupted Hi-Fi sound.</p>
-                <div class="price-amount">
-                  <span class="currency">$9.99</span>
-                  <span class="period">/ month</span>
-                </div>
+              <h3 class="card-name">Acoustic</h3>
+              <p class="card-desc">Soft guitar and warm vocals</p>
+            </a>
+            <a href="/Dashboard" class="music-card">
+              <div class="card-thumb">
+                <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop" alt="" loading="lazy" />
+                <span class="play-float"><i class="fa-solid fa-play"></i></span>
               </div>
-              <ul class="price-features">
-                <li>
-                  <i class="fa-solid fa-check"></i>
-                  <strong>Ad-free</strong> lossless 24-bit audio
-                </li>
-                <li>
-                  <i class="fa-solid fa-check"></i> Unlimited offline vault uploads
-                </li>
-                <li>
-                  <i class="fa-solid fa-check"></i> Spatial Audio &amp; Dolby Atmos
-                </li>
-                <li>
-                  <i class="fa-solid fa-check"></i> Real-time custom playlists
-                </li>
-              </ul>
-              <a href="/Sign-Up" class="btn-plan-green"
-                >Start 30-Day Free Trial</a
-              >
-            </div>
+              <h3 class="card-name">Synth &amp; Electronic</h3>
+              <p class="card-desc">Driving basslines for late nights</p>
+            </a>
+            <a href="/Dashboard" class="music-card">
+              <div class="card-thumb">
+                <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&auto=format&fit=crop" alt="" loading="lazy" />
+                <span class="play-float"><i class="fa-solid fa-play"></i></span>
+              </div>
+              <h3 class="card-name">Trending</h3>
+              <p class="card-desc">What people are playing now</p>
+            </a>
+            <a href="/Dashboard" class="music-card">
+              <div class="card-thumb">
+                <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400&auto=format&fit=crop" alt="" loading="lazy" />
+                <span class="play-float"><i class="fa-solid fa-play"></i></span>
+              </div>
+              <h3 class="card-name">Chill &amp; Lofi</h3>
+              <p class="card-desc">Calm beats for focus</p>
+            </a>
           </div>
         </div>
       </section>
 
-      <!-- ================= 6. CTA SPOTLIGHT BANNER ================= -->
-      <section class="cta-section">
+      <!-- HOW IT WORKS -->
+      <section class="section" id="how">
         <div class="container">
-          <div class="hero-banner">
-            <div class="hero-body">
-              <span class="badge-tag">Ready To Tune In?</span>
-              <h2 class="banner-title">Your Next Favorite Track is Waiting.</h2>
-              <p class="banner-desc">
-                Join millions of listeners discovering underground synthwave,
-                chill lofi beats, and global chart-toppers on Sound Pulse.
-              </p>
-              <div class="hero-actions">
-                <a href="/Sign-Up" class="btn-hero-green"
-                  ><i class="fa-solid fa-user-plus"></i> Sign Up Now</a
-                >
-                <a href="/Login" class="btn-hero-glass"
-                  ><i class="fa-solid fa-right-to-bracket"></i> Member Login</a
-                >
-              </div>
+          <div class="section-head">
+            <span class="section-tag">How it works</span>
+            <h2>Start listening in a minute</h2>
+          </div>
+          <ol class="steps">
+            <li class="step">
+              <span class="step-num">1</span>
+              <h3>Create your account</h3>
+              <p>Sign up with your email and confirm it with a 6-digit code.</p>
+            </li>
+            <li class="step">
+              <span class="step-num">2</span>
+              <h3>Play or upload</h3>
+              <p>Stream the catalog, or drop your own audio files into your private vault.</p>
+            </li>
+            <li class="step">
+              <span class="step-num">3</span>
+              <h3>Make it yours</h3>
+              <p>Like songs, build playlists and pick up where you left off on any device.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="section cta-section" data-guest>
+        <div class="container">
+          <div class="cta-banner">
+            <div>
+              <h2>Ready to press play?</h2>
+              <p>Create your free Sohify account — it takes less than a minute.</p>
+            </div>
+            <div class="cta-actions">
+              <a href="/Sign-Up" class="btn-hero"><i class="fa-solid fa-user-plus"></i> Sign up free</a>
+              <a href="/Login" class="btn-hero-ghost">Log in</a>
             </div>
           </div>
         </div>
       </section>
     </main>
 
-    <!-- ================= 7. FOOTER ================= -->
+    <!-- FOOTER -->
     <footer class="site-footer">
       <div class="container footer-grid">
         <div class="footer-brand">
           <a href="/" class="brand-mark">
-            <span class="brand-icon" aria-hidden="true">
-              <img src="/favicon.svg" alt="" class="brand-logo-svg" />
-            </span>
-            <span class="brand-name">Sound <span class="neon-word">Pulse</span></span>
+            <span class="brand-icon" aria-hidden="true"><img src="/favicon.svg" alt="" /></span>
+            <span class="brand-name">Sohify</span>
           </a>
-          <p>
-            Next-generation audio streaming crafted for deep focus, late-night
-            drives, and everyday discovery.
-          </p>
+          <p>A simple, ad-free music player for the web.</p>
         </div>
-
         <div class="footer-col">
-          <h4>Platform</h4>
-          <a href="/Dashboard">Web Player</a>
-          <a href="#trending">Trending Charts</a>
-          <a href="#features">Hi-Fi Audio</a>
-          <a href="#pricing">Pricing</a>
+          <h4>Listen</h4>
+          <a href="/Dashboard">Web player</a>
+          <a href="#features">Features</a>
+          <a href="#moods">Moods</a>
         </div>
-
         <div class="footer-col">
           <h4>Account</h4>
-          <a href="/Login">Sign In</a>
-          <a href="/Sign-Up">Create Account</a>
-          <a href="/Dashboard">My Library</a>
-          <a href="/Terms">Terms &amp; Conditions</a>
+          <a href="/Login">Log in</a>
+          <a href="/Sign-Up">Sign up</a>
+          <a href="/Login?forgot=1">Forgot password</a>
         </div>
-
         <div class="footer-col">
-          <h4>Connect</h4>
-          <div class="footer-socials">
-            <a href="#" aria-label="Instagram"
-              ><i class="fa-brands fa-instagram"></i
-            ></a>
-            <a href="#" aria-label="Twitter"
-              ><i class="fa-brands fa-twitter"></i
-            ></a>
-            <a href="#" aria-label="Discord"
-              ><i class="fa-brands fa-discord"></i
-            ></a>
-          </div>
+          <h4>Legal</h4>
+          <a href="/Terms">Terms &amp; Conditions</a>
+          <a href="mailto:soundpulsecode@gmail.com">Contact</a>
         </div>
       </div>
       <div class="container footer-bottom">
-        <p>&copy; 2026 Sound Pulse Music. All rights reserved.</p>
-        <div class="footer-bottom-links">
-          <a href="/Terms" class="footer-legal-link">Terms &amp; Conditions</a>
-        </div>
+        <p>&copy; <span id="year">2026</span> Sohify. All rights reserved.</p>
       </div>
     </footer>
 
-    <!-- Floating Preview Toast when clicking Trending Cards -->
-    <div class="landing-preview-toast" id="landingPreviewToast" role="status" aria-live="polite">
-      <img id="previewToastImg" src="" alt="" />
-      <div class="preview-toast-meta">
-        <span class="preview-toast-label">SELECTED COLLECTION</span>
-        <strong id="previewToastTitle">Track</strong>
-        <span id="previewToastArtist">Artist</span>
-      </div>
-      <a href="/Dashboard" class="preview-toast-btn">
-        Open Player <i class="fa-solid fa-arrow-right"></i>
-      </a>
-    </div>
-
-    <!-- Interactive Script -->
     <script src="/script.js"></script>
   </body>
 </html>

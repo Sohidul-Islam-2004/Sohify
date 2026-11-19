@@ -1,223 +1,185 @@
-function togglePasswordVisibility(inputId, btn) {
-    const input = document.getElementById(inputId);
-    const icon = btn.querySelector("i");
-    const isPassword = input.type === "password";
-    input.type = isPassword ? "text" : "password";
-    icon.className = isPassword ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
+/* ==========================================================================
+   SOHIFY — SIGN UP (details → email code → account)
+   ========================================================================== */
+
+const API = "/api/users";
+const MIN_PASSWORD = 8;
+const SESSION_KEYS = ["sohify_token", "sohify_user", "sohify_username", "sohify_user_id", "sohify_is_admin", "sohify_avatar"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const $ = (id) => document.getElementById(id);
+
+async function postJSON(path, body) {
+    const res = await fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
 }
 
-// Form & step containers
-const signupStep = document.getElementById("signupStep");
-const verifyStep = document.getElementById("verifyStep");
-const signupForm = document.getElementById("signupForm");
-const verifyForm = document.getElementById("verifyForm");
+function setBusy(btn, busy, label) {
+    if (busy) {
+        btn.dataset.label = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>${label}</span>`;
+    } else {
+        btn.disabled = false;
+        if (btn.dataset.label) btn.innerHTML = btn.dataset.label;
+    }
+}
 
-// Step 1 inputs
-const fullNameInput = document.getElementById("fullName");
-const emailInput = document.getElementById("email");
-const passwordInput = document.getElementById("password");
-const confirmPasswordInput = document.getElementById("confirmPassword");
-const termsCheckbox = document.getElementById("terms");
-const strengthMeter = document.getElementById("strengthMeter");
-const signupSubmitBtn = document.getElementById("signupSubmitBtn");
+function showAlert(el, message, type = "error") {
+    el.className = `form-alert ${type}`;
+    el.textContent = message;
+    el.hidden = !message;
+}
 
-// Step 1 errors
-const nameError = document.getElementById("nameError");
-const emailError = document.getElementById("emailError");
-const passwordError = document.getElementById("passwordError");
-const confirmPasswordError = document.getElementById("confirmPasswordError");
-const termsError = document.getElementById("termsError");
+/* ---------- Elements ---------- */
+const signupStep = $("signupStep");
+const verifyStep = $("verifyStep");
+const signupForm = $("signupForm");
+const verifyForm = $("verifyForm");
 
-// Terms modal elements
-const termsModal = document.getElementById("termsModal");
-const openTermsLink = document.getElementById("openTermsLink");
-const closeTermsModalBtn = document.getElementById("closeTermsModalBtn");
-const dismissTermsModalBtn = document.getElementById("dismissTermsModalBtn");
-const acceptTermsModalBtn = document.getElementById("acceptTermsModalBtn");
+const fullNameInput = $("fullName");
+const emailInput = $("email");
+const passwordInput = $("password");
+const confirmPasswordInput = $("confirmPassword");
+const termsCheckbox = $("terms");
+const signupSubmitBtn = $("signupSubmitBtn");
 
-// Step 2 inputs & controls
-const verifyTargetEmail = document.getElementById("verifyTargetEmail");
-const verifyAlert = document.getElementById("verifyAlert");
-const verifyError = document.getElementById("verifyError");
-const verifySubmitBtn = document.getElementById("verifySubmitBtn");
-const resendCodeBtn = document.getElementById("resendCodeBtn");
-const resendCountdown = document.getElementById("resendCountdown");
-const backToSignupBtn = document.getElementById("backToSignupBtn");
-const otpDigits = document.querySelectorAll(".otp-digit");
+const errors = {
+    fullName: $("nameError"),
+    email: $("emailError"),
+    password: $("passwordError"),
+    confirmPassword: $("confirmPasswordError"),
+    terms: $("termsError")
+};
 
-const API_BASE = "/api/users";
-const MIN_PASSWORD = 8;
+const otpDigits = Array.from(document.querySelectorAll(".otp-digit"));
+const verifyAlert = $("verifyAlert");
+const verifyError = $("verifyError");
+const verifySubmitBtn = $("verifySubmitBtn");
+const resendCodeBtn = $("resendCodeBtn");
 
 let currentEmail = "";
-let currentFullName = "";
 let countdownTimer = null;
 
-/* ============================================================
-   PASSWORD STRENGTH METER & VALIDATION
-   ============================================================ */
+/* ---------- If already signed in, skip sign-up ---------- */
+if (localStorage.getItem("sohify_token") || sessionStorage.getItem("sohify_token")) {
+    const token = localStorage.getItem("sohify_token") || sessionStorage.getItem("sohify_token");
+    fetch(`${API}/me`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.ok && window.location.replace("/Dashboard"))
+        .catch(() => {});
+}
+
+/* ---------- Password show/hide ---------- */
+document.querySelectorAll(".toggle-btn[data-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        const input = $(btn.dataset.toggle);
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        btn.querySelector("i").className = show ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
+        btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
+});
+
+/* ---------- Strength meter + live error clearing ---------- */
 passwordInput.addEventListener("input", () => {
     const val = passwordInput.value;
     let score = 0;
     if (val.length >= MIN_PASSWORD) score++;
-    if (/[A-Z]/.test(val)) score++;
+    if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
     if (/[0-9]/.test(val)) score++;
     if (/[^A-Za-z0-9]/.test(val)) score++;
-
-    const bars = strengthMeter?.querySelectorAll("span") || [];
-    bars.forEach((bar, i) => {
-        bar.classList.remove("weak", "medium", "strong");
-        if (i < score) {
-            if (score <= 2) bar.classList.add("weak");
-            else if (score === 3) bar.classList.add("medium");
-            else bar.classList.add("strong");
-        }
+    const level = score <= 1 ? "weak" : score <= 3 ? "medium" : "strong";
+    $("strengthMeter").querySelectorAll("span").forEach((bar, i) => {
+        bar.className = val && i < Math.max(score, 1) ? level : "";
     });
-
-    if (val.length >= MIN_PASSWORD) passwordError.textContent = "";
+    if (val.length >= MIN_PASSWORD) errors.password.textContent = "";
 });
 
 confirmPasswordInput.addEventListener("input", () => {
-    if (passwordInput.value === confirmPasswordInput.value) {
-        confirmPasswordError.textContent = "";
-    }
+    if (passwordInput.value === confirmPasswordInput.value) errors.confirmPassword.textContent = "";
 });
-
-emailInput.addEventListener("input", () => (emailError.textContent = ""));
-fullNameInput.addEventListener("input", () => (nameError.textContent = ""));
-if (termsCheckbox) {
-    termsCheckbox.addEventListener("change", () => {
-        if (termsError) termsError.textContent = "";
-    });
-}
-
-function openTermsModal() {
-    if (!termsModal) return;
-    termsModal.classList.add("active");
-    termsModal.setAttribute("aria-hidden", "false");
-    document.body.style.overflow = "hidden";
-}
-
-function closeTermsModal() {
-    if (!termsModal) return;
-    termsModal.classList.remove("active");
-    termsModal.setAttribute("aria-hidden", "true");
-    document.body.style.overflow = "";
-}
-
-if (openTermsLink && termsModal) {
-    openTermsLink.addEventListener("click", (e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-        e.preventDefault();
-        openTermsModal();
-    });
-}
-
-if (closeTermsModalBtn) closeTermsModalBtn.addEventListener("click", closeTermsModal);
-if (dismissTermsModalBtn) dismissTermsModalBtn.addEventListener("click", closeTermsModal);
-if (acceptTermsModalBtn) {
-    acceptTermsModalBtn.addEventListener("click", () => {
-        if (termsCheckbox) termsCheckbox.checked = true;
-        if (termsError) termsError.textContent = "";
-        closeTermsModal();
-        signupSubmitBtn?.focus();
-    });
-}
-if (termsModal) {
-    termsModal.addEventListener("click", (e) => {
-        if (e.target === termsModal) closeTermsModal();
-    });
-}
-document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && termsModal?.classList.contains("active")) {
-        closeTermsModal();
-    }
-});
+emailInput.addEventListener("input", () => (errors.email.textContent = ""));
+fullNameInput.addEventListener("input", () => (errors.fullName.textContent = ""));
+termsCheckbox.addEventListener("change", () => (errors.terms.textContent = ""));
 
 function clearErrors() {
-    nameError.textContent = "";
-    emailError.textContent = "";
-    passwordError.textContent = "";
-    confirmPasswordError.textContent = "";
-    if (termsError) termsError.textContent = "";
-    if (verifyError) verifyError.textContent = "";
+    Object.values(errors).forEach((el) => (el.textContent = ""));
+    showAlert($("signupAlert"), "");
 }
 
-function showFieldError(field, message) {
-    const map = {
-        fullName: nameError,
-        name: nameError,
-        email: emailError,
-        password: passwordError,
-        confirmPassword: confirmPasswordError,
-        terms: termsError,
-        acceptedTerms: termsError,
-    };
-    if (map[field]) {
-        map[field].textContent = message;
+/* ---------- Terms modal ---------- */
+const termsModal = $("termsModal");
+let lastFocus = null;
+
+function openTermsModal() {
+    lastFocus = document.activeElement;
+    termsModal.hidden = false;
+    document.body.style.overflow = "hidden";
+    $("acceptTermsModalBtn").focus();
+}
+function closeTermsModal() {
+    termsModal.hidden = true;
+    document.body.style.overflow = "";
+    lastFocus?.focus();
+}
+
+$("openTermsLink").addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // allow open-in-new-tab
+    e.preventDefault();
+    openTermsModal();
+});
+$("closeTermsModalBtn").addEventListener("click", closeTermsModal);
+$("dismissTermsModalBtn").addEventListener("click", closeTermsModal);
+$("acceptTermsModalBtn").addEventListener("click", () => {
+    termsCheckbox.checked = true;
+    errors.terms.textContent = "";
+    closeTermsModal();
+    signupSubmitBtn.focus();
+});
+termsModal.addEventListener("click", (e) => e.target === termsModal && closeTermsModal());
+document.addEventListener("keydown", (e) => e.key === "Escape" && !termsModal.hidden && closeTermsModal());
+
+/* ---------- Steps + resend countdown ---------- */
+function showStep(step) {
+    const isVerify = step === "verify";
+    signupStep.hidden = isVerify;
+    verifyStep.hidden = !isVerify;
+    if (isVerify) {
+        $("verifyTargetEmail").textContent = currentEmail;
+        resetOtp();
+        startCountdown(45);
+        setTimeout(() => otpDigits[0].focus(), 50);
     } else {
-        alert(message);
+        clearInterval(countdownTimer);
+        setTimeout(() => emailInput.focus(), 50);
     }
 }
 
-/* ============================================================
-   STEP NAVIGATION & RESEND TIMER
-   ============================================================ */
-function showStep(stepName) {
-    clearErrors();
-    if (stepName === "verify") {
-        signupStep.style.display = "none";
-        verifyStep.style.display = "block";
-        verifyTargetEmail.textContent = currentEmail;
-
-        // Reset and focus OTP digits
-        otpDigits.forEach(input => {
-            input.value = "";
-            input.classList.remove("filled");
-        });
-        setTimeout(() => otpDigits[0]?.focus(), 100);
-        startResendCountdown(45);
-    } else {
-        verifyStep.style.display = "none";
-        signupStep.style.display = "block";
-        if (countdownTimer) clearInterval(countdownTimer);
-        setTimeout(() => emailInput?.focus(), 100);
-    }
-}
-
-function startResendCountdown(seconds = 45) {
-    if (countdownTimer) clearInterval(countdownTimer);
-    let timeLeft = seconds;
+function startCountdown(seconds) {
+    clearInterval(countdownTimer);
+    let left = seconds;
     resendCodeBtn.disabled = true;
-    resendCodeBtn.innerHTML = `Resend (<span id="resendCountdown">${timeLeft}</span>s)`;
-
+    resendCodeBtn.innerHTML = `resend in <span id="resendCountdown">${left}</span>s`;
     countdownTimer = setInterval(() => {
-        timeLeft -= 1;
-        const countSpan = document.getElementById("resendCountdown");
-        if (countSpan) countSpan.textContent = timeLeft;
-
-        if (timeLeft <= 0) {
+        left -= 1;
+        const span = $("resendCountdown");
+        if (span) span.textContent = left;
+        if (left <= 0) {
             clearInterval(countdownTimer);
             resendCodeBtn.disabled = false;
-            resendCodeBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Resend Code';
+            resendCodeBtn.textContent = "resend code";
         }
     }, 1000);
 }
 
-function showAlert(message, type = "info") {
-    if (!verifyAlert) return;
-    verifyAlert.className = `verify-alert ${type}`;
-    verifyAlert.innerHTML = message;
-    verifyAlert.style.display = "block";
-}
-
-function hideAlert() {
-    if (!verifyAlert) return;
-    verifyAlert.style.display = "none";
-}
-
-/* ============================================================
-   STEP 1: SUBMIT REGISTRATION -> SEND CONFIRMATION CODE
-   ============================================================ */
+/* ==========================================================================
+   STEP 1 — send confirmation code
+   ========================================================================== */
 signupForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     clearErrors();
@@ -227,268 +189,194 @@ signupForm.addEventListener("submit", async (e) => {
     const password = passwordInput.value;
     const confirmPassword = confirmPasswordInput.value;
 
-    if (!fullName) return (nameError.textContent = "Please enter your full name.");
-    if (!email) return (emailError.textContent = "Please enter an email address.");
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return (emailError.textContent = "Please enter a valid email address.");
+    const fail = (field, msg, input) => {
+        errors[field].textContent = msg;
+        input?.focus();
+    };
 
-    if (password.length < MIN_PASSWORD) {
-        return (passwordError.textContent = `Password must be at least ${MIN_PASSWORD} characters.`);
-    }
-    if (password !== confirmPassword) {
-        return (confirmPasswordError.textContent = "Passwords do not match.");
-    }
-    if (!termsCheckbox.checked) {
-        if (termsError) {
-            termsError.textContent = "Please agree to the Terms & Conditions to create your account.";
-        }
-        termsCheckbox.focus();
-        return;
-    }
+    if (!fullName) return fail("fullName", "Please enter your name.", fullNameInput);
+    if (!EMAIL_RE.test(email)) return fail("email", "Please enter a valid email address.", emailInput);
+    if (password.length < MIN_PASSWORD) return fail("password", `Password must be at least ${MIN_PASSWORD} characters.`, passwordInput);
+    if (password !== confirmPassword) return fail("confirmPassword", "Passwords do not match.", confirmPasswordInput);
+    if (!termsCheckbox.checked) return fail("terms", "Please agree to the Terms & Conditions.", termsCheckbox);
 
-    const originalText = signupSubmitBtn.innerHTML;
-    signupSubmitBtn.disabled = true;
-    signupSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Sending confirmation code...</span>';
-
+    setBusy(signupSubmitBtn, true, "Sending code…");
     try {
-        const res = await fetch(`${API_BASE}/send-verification`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                fullName,
-                email,
-                password,
-                confirmPassword,
-                acceptedTerms: Boolean(termsCheckbox.checked)
-            }),
+        const { ok, data } = await postJSON("/send-verification", {
+            fullName,
+            email,
+            password,
+            confirmPassword,
+            acceptedTerms: true
         });
 
-        const data = await res.json();
-
-        if (!res.ok) {
-            showFieldError(data.field, data.message || "Could not send verification code.");
+        if (!ok) {
+            const field = data.field === "acceptedTerms" ? "terms" : data.field;
+            if (errors[field]) errors[field].textContent = data.message;
+            else showAlert($("signupAlert"), data.message || "Couldn't send the code. Please try again.");
             return;
         }
 
         currentEmail = email;
-        currentFullName = fullName;
-
         showStep("verify");
-
-        if (data.simulated) {
-            showAlert("💡 <strong>Dev Notice:</strong> Google SMTP credentials not set in Server/.env. The 6-digit confirmation code was logged to your terminal console.", "info");
-        } else {
-            showAlert(`A 6-digit confirmation code was sent to <strong>${email}</strong> via Google SMTP. Check your inbox and spam folder.`, "success");
-        }
+        showAlert(
+            verifyAlert,
+            data.simulated
+                ? "Dev mode: SMTP isn't configured, so the code was printed in the server terminal."
+                : "Code sent! It can take a minute to arrive.",
+            data.simulated ? "info" : "success"
+        );
     } catch (err) {
-        console.error("Signup request error:", err);
-        alert("Network error. Please verify your connection and server status.");
+        console.error("Signup error:", err);
+        showAlert($("signupAlert"), "Can't reach the server. Check your connection and try again.");
     } finally {
-        signupSubmitBtn.disabled = false;
-        signupSubmitBtn.innerHTML = originalText;
+        setBusy(signupSubmitBtn, false);
     }
 });
 
-/* ============================================================
-   OTP BOXES INTERACTIONS (Typing, Backspace, Paste)
-   ============================================================ */
-otpDigits.forEach((digitInput, index) => {
-    // Only accept numeric inputs & auto-advance
-    digitInput.addEventListener("input", (e) => {
-        const val = e.target.value.replace(/\D/g, "");
-        e.target.value = val;
-
-        if (val) {
-            digitInput.classList.add("filled");
-            if (verifyError) verifyError.textContent = "";
-
-            if (index < otpDigits.length - 1) {
-                otpDigits[index + 1].focus();
-            } else {
-                // All 6 digits filled -> auto-submit!
-                const completeCode = getEnteredOtp();
-                if (completeCode.length === 6) {
-                    verifyForm.requestSubmit();
-                }
-            }
-        } else {
-            digitInput.classList.remove("filled");
+/* ==========================================================================
+   OTP boxes
+   ========================================================================== */
+function getOtp() {
+    return otpDigits.map((i) => i.value).join("");
+}
+function resetOtp() {
+    otpDigits.forEach((i) => {
+        i.value = "";
+        i.classList.remove("filled", "invalid");
+    });
+    verifyError.textContent = "";
+}
+function fillOtp(digits, startAt = 0) {
+    digits.split("").forEach((d, n) => {
+        const box = otpDigits[startAt + n];
+        if (box) {
+            box.value = d;
+            box.classList.add("filled");
         }
     });
+    (otpDigits.find((i) => !i.value) || otpDigits[5]).focus();
+    if (getOtp().length === 6) verifyForm.requestSubmit();
+}
 
-    // Handle backspace navigation
-    digitInput.addEventListener("keydown", (e) => {
-        if (e.key === "Backspace") {
-            if (!digitInput.value && index > 0) {
-                otpDigits[index - 1].focus();
-                otpDigits[index - 1].value = "";
-                otpDigits[index - 1].classList.remove("filled");
-            } else {
-                digitInput.value = "";
-                digitInput.classList.remove("filled");
-            }
+otpDigits.forEach((box, index) => {
+    box.addEventListener("input", () => {
+        const val = box.value.replace(/\D/g, "");
+        verifyError.textContent = "";
+        otpDigits.forEach((d) => d.classList.remove("invalid"));
+        if (val.length > 1) {
+            box.value = "";
+            return fillOtp(val.slice(0, 6 - index), index);
+        }
+        box.value = val;
+        box.classList.toggle("filled", !!val);
+        if (val && index < 5) otpDigits[index + 1].focus();
+        if (getOtp().length === 6) verifyForm.requestSubmit();
+    });
+
+    box.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !box.value && index > 0) {
+            otpDigits[index - 1].value = "";
+            otpDigits[index - 1].classList.remove("filled");
+            otpDigits[index - 1].focus();
+            e.preventDefault();
         } else if (e.key === "ArrowLeft" && index > 0) {
             otpDigits[index - 1].focus();
-        } else if (e.key === "ArrowRight" && index < otpDigits.length - 1) {
+        } else if (e.key === "ArrowRight" && index < 5) {
             otpDigits[index + 1].focus();
         }
     });
 
-    // Handle paste across any of the digits
-    digitInput.addEventListener("paste", (e) => {
+    box.addEventListener("focus", () => box.select());
+
+    box.addEventListener("paste", (e) => {
         e.preventDefault();
-        const clipboard = (e.clipboardData || window.clipboardData).getData("text") || "";
-        const digits = clipboard.replace(/\D/g, "").slice(0, 6);
-
+        const digits = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "").slice(0, 6);
         if (!digits) return;
-
-        digits.split("").forEach((d, i) => {
-            if (otpDigits[i]) {
-                otpDigits[i].value = d;
-                otpDigits[i].classList.add("filled");
-            }
-        });
-
-        if (digits.length === 6) {
-            otpDigits[5].focus();
-            verifyForm.requestSubmit();
-        } else {
-            const nextEmpty = Math.min(digits.length, otpDigits.length - 1);
-            otpDigits[nextEmpty].focus();
-        }
+        resetOtp();
+        fillOtp(digits, 0);
     });
 });
 
-function getEnteredOtp() {
-    return Array.from(otpDigits).map(input => input.value.trim()).join("");
-}
-
-/* ============================================================
-   STEP 2: CONFIRM CODE & FINALIZE REGISTRATION
-   ============================================================ */
+/* ==========================================================================
+   STEP 2 — confirm code and create the account
+   ========================================================================== */
+let verifying = false;
 verifyForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (verifyError) verifyError.textContent = "";
+    if (verifying) return;
 
-    const code = getEnteredOtp();
+    const code = getOtp();
     if (code.length !== 6) {
-        if (verifyError) verifyError.textContent = "Please enter the full 6-digit confirmation code.";
-        // Focus first empty digit
-        for (const input of otpDigits) {
-            if (!input.value) { input.focus(); break; }
-        }
-        return;
+        verifyError.textContent = "Please enter all 6 digits.";
+        return (otpDigits.find((i) => !i.value) || otpDigits[0]).focus();
     }
 
-    const originalText = verifySubmitBtn.innerHTML;
-    verifySubmitBtn.disabled = true;
-    verifySubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Confirming code...</span>';
-
+    verifying = true;
+    setBusy(verifySubmitBtn, true, "Creating account…");
     try {
-        const res = await fetch(`${API_BASE}/verify-and-register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: currentEmail, code }),
-        });
+        const { ok, data } = await postJSON("/verify-and-register", { email: currentEmail, code });
 
-        const data = await res.json();
-
-        if (!res.ok) {
-            if (verifyError) verifyError.textContent = data.message || "Invalid confirmation code.";
-            // Highlight OTP boxes
-            otpDigits.forEach(d => {
-                d.style.borderColor = "#f87171";
-                setTimeout(() => (d.style.borderColor = ""), 1500);
+        if (!ok) {
+            verifyError.textContent = data.message || "That code didn't work.";
+            otpDigits.forEach((d) => {
+                d.value = "";
+                d.classList.remove("filled");
+                d.classList.add("invalid");
             });
+            otpDigits[0].focus();
             return;
         }
 
-        // Success state
-        showAlert("🎉 <strong>Account Confirmed!</strong> Welcome to Sound Pulse. Redirecting to your dashboard...", "success");
-
+        // New accounts start a normal (non-remembered) session.
         const user = data.data;
-        const username = user.name || user.email.split("@")[0];
-        const token = data.token || "session_token_" + Date.now();
-        const isAdminStr = String(Boolean(user.isAdmin));
-
-        // Store session tokens for seamless immediate login
-        localStorage.setItem("sohify_token", token);
-        localStorage.setItem("sohify_user", user.email);
-        localStorage.setItem("sohify_username", username);
-        localStorage.setItem("sohify_user_id", user.id);
-        localStorage.setItem("sohify_is_admin", isAdminStr);
-
-        sessionStorage.setItem("sohify_token", token);
+        SESSION_KEYS.forEach((k) => {
+            localStorage.removeItem(k);
+            sessionStorage.removeItem(k);
+        });
+        sessionStorage.setItem("sohify_token", data.token);
         sessionStorage.setItem("sohify_user", user.email);
-        sessionStorage.setItem("sohify_username", username);
+        sessionStorage.setItem("sohify_username", user.name || user.email.split("@")[0]);
         sessionStorage.setItem("sohify_user_id", user.id);
-        sessionStorage.setItem("sohify_is_admin", isAdminStr);
-
+        sessionStorage.setItem("sohify_is_admin", String(Boolean(user.isAdmin)));
         localStorage.setItem("sohify_signup_email", user.email);
-        localStorage.setItem("sohify_signup_name", user.name);
 
-        setTimeout(() => {
-            window.location.href = "/Dashboard";
-        }, 1200);
+        showAlert(verifyAlert, "Welcome to Sohify! Taking you to the player…", "success");
+        clearInterval(countdownTimer);
+        setTimeout(() => window.location.replace("/Dashboard"), 900);
     } catch (err) {
-        console.error("Verification submit error:", err);
-        if (verifyError) verifyError.textContent = "Network error. Please try again.";
+        console.error("Verify error:", err);
+        verifyError.textContent = "Can't reach the server. Please try again.";
     } finally {
-        verifySubmitBtn.disabled = false;
-        verifySubmitBtn.innerHTML = originalText;
+        verifying = false;
+        setBusy(verifySubmitBtn, false);
     }
 });
 
-/* ============================================================
-   RESEND CODE ACTION
-   ============================================================ */
+/* ---------- Resend ---------- */
 resendCodeBtn.addEventListener("click", async () => {
     if (resendCodeBtn.disabled || !currentEmail) return;
-
     resendCodeBtn.disabled = true;
-    const prevText = resendCodeBtn.innerHTML;
-    resendCodeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
-    hideAlert();
-
+    resendCodeBtn.textContent = "sending…";
     try {
-        const res = await fetch(`${API_BASE}/resend-verification`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: currentEmail }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            showAlert(data.message || "Failed to resend code. Please try again later.", "error");
-            startResendCountdown(10);
-            return;
+        const { ok, data } = await postJSON("/resend-verification", { email: currentEmail });
+        if (!ok) {
+            showAlert(verifyAlert, data.message || "Couldn't resend the code.");
+            if (/expired|not found/i.test(data.message || "")) return showStep("signup");
+            return startCountdown(10);
         }
-
-        // Clear existing digits
-        otpDigits.forEach(d => {
-            d.value = "";
-            d.classList.remove("filled");
-        });
-        otpDigits[0]?.focus();
-
-        if (data.simulated) {
-            showAlert("💡 <strong>Dev Notice:</strong> New 6-digit confirmation code was logged to your terminal console.", "info");
-        } else {
-            showAlert(`A fresh 6-digit confirmation code was sent to <strong>${currentEmail}</strong>.`, "success");
-        }
-
-        startResendCountdown(45);
-    } catch (err) {
-        console.error("Resend error:", err);
-        showAlert("Network error while resending confirmation code.", "error");
-        startResendCountdown(15);
+        resetOtp();
+        otpDigits[0].focus();
+        showAlert(
+            verifyAlert,
+            data.simulated ? "Dev mode: new code printed in the server terminal." : `A new code was sent to ${currentEmail}.`,
+            data.simulated ? "info" : "success"
+        );
+        startCountdown(45);
+    } catch {
+        showAlert(verifyAlert, "Can't reach the server. Try again in a moment.");
+        startCountdown(15);
     }
 });
 
-/* ============================================================
-   CHANGE EMAIL / BACK TO STEP 1
-   ============================================================ */
-backToSignupBtn.addEventListener("click", () => {
-    showStep("signup");
-});
+$("backToSignupBtn").addEventListener("click", () => showStep("signup"));

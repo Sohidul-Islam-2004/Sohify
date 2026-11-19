@@ -1,834 +1,428 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0a12">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <title>Sound Pulse Player</title>
+    <title>Sohify – Web Player</title>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/Dashboard/style.css">
-
-    <!-- Supabase JS Client for Cloud Audio & Cover Artwork Storage -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
-    <!-- NEON AMBIENT BACKDROP & PERSPECTIVE CYBER GRID -->
-    <div class="cyber-grid" aria-hidden="true"></div>
-    <div class="neon-ambient-backdrop" aria-hidden="true">
-        <div class="ambient-glow glow-cyan"></div>
-        <div class="ambient-glow glow-magenta"></div>
-        <div class="ambient-glow glow-violet"></div>
-    </div>
+<div class="app">
 
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <div class="drop-overlay" id="dropOverlay" style="display: none;">
-        <div class="drop-card">
-            <i class="fa-solid fa-cloud-arrow-up"></i>
-            <h3>Drop your local audio file here</h3>
-            <p>Supports MP3, WAV, OGG, M4A, FLAC · Saved Privately</p>
-        </div>
-    </div>
-
-    <input type="file" id="userAvatarInput" accept="image/*" style="display: none;">
-
-    <div class="app-viewport">
-        <!-- 1. SIDEBAR NAVIGATION -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <a href="/Dashboard" class="brand-logo">
-                    <span class="brand-icon" aria-hidden="true">
-                        <img src="/favicon.svg" alt="" class="brand-logo-svg">
-                    </span>
-                    <h2>Sound <span class="neon-word">Pulse</span></h2>
-                </a>
-                <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close Menu">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <div class="sidebar-action-box">
-                <button class="btn btn-upload-sidebar" id="sidebarUploadBtn" title="Upload a private audio file only visible to you">
-                    <i class="fa-solid fa-circle-plus"></i>
-                    <span>Import Local Song</span>
-                </button>
-            </div>
-
-            <div class="nav-group">
-                <p class="nav-label">Menu</p>
-                <ul class="nav-list">
-                    <li class="nav-item active" id="navHome"><a href="#"><i class="fa-solid fa-house"></i> Home</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-group">
-                <p class="nav-label">My Library</p>
-                <ul class="nav-list">
-                    <li class="nav-item" id="navLiked"><a href="#"><i class="fa-solid fa-heart"></i> Liked Songs <span class="badge-count" id="likedCountBadge">0</span></a></li>
-                    <li class="nav-item" id="navLocal"><a href="#"><i class="fa-solid fa-folder-open"></i> Local Files <span class="badge-count" id="localCountBadge">0</span></a></li>
-                    <li class="nav-item" id="navRecent"><a href="#"><i class="fa-solid fa-clock-rotate-left"></i> Recent</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-header">
-                    <p class="nav-label">Playlists</p>
-                    <button class="btn-create-playlist" id="createPlaylistBtn" title="Create New Playlist">
-                        <i class="fa-solid fa-plus"></i>
-                    </button>
-                </div>
-                <ul class="nav-list" id="playlistNavList"></ul>
-            </div>
-
-            <div class="sidebar-footer">
-                <a href="/Terms" target="_blank" rel="noopener noreferrer" class="sidebar-legal-link">
-                    <i class="fa-solid fa-file-contract"></i>
-                    <span>Terms &amp; Conditions</span>
-                    <i class="fa-solid fa-arrow-up-right-from-square external-icon"></i>
-                </a>
-            </div>
-        </aside>
-
-        <!-- 2. MAIN DASHBOARD CONTENT -->
-        <main class="main-wrapper" id="mainWrapper">
-            <header class="top-header">
-                <div class="header-left">
-                    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open Navigation">
-                        <i class="fa-solid fa-bars"></i>
-                    </button>
-                    <div class="search-bar">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" id="searchInput" placeholder="Search artists, songs, or local files...">
-                    </div>
-                </div>
-
-                <div class="header-right">
-                    <button class="header-icon-btn" id="shortcutsBtn" title="Keyboard Shortcuts (?)">
-                        <i class="fa-solid fa-keyboard"></i>
-                    </button>
-
-                    <button class="btn btn-glass btn-upload-header" id="headerUploadBtn" style="display: none;" title="Admin Cloud Upload">
-                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <span>Upload Audio</span>
-                    </button>
-
-                    <a href="/Login" class="btn-login" id="authBtn">
-                        <i class="fa-solid fa-right-to-bracket"></i>
-                        <span id="authBtnText">Log In</span>
-                    </a>
-
-                    <div class="user-profile-container">
-                        <div class="user-profile" id="userProfileBtn" title="Click to view profile & options">
-                            <div class="user-avatar-wrap">
-                                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop"
-                                    alt="User Profile" class="user-avatar" id="userAvatar">
-                            </div>
-                            <span class="user-name" id="displayUserName">Guest Listener</span>
-                            <i class="fa-solid fa-chevron-down profile-dropdown-arrow"></i>
-                        </div>
-
-                        <div class="user-info-card" id="userInfoCard">
-                            <div class="user-card-header">
-                                <div class="user-card-avatar-wrap" id="cardAvatarUploadBtn" title="Click to change profile picture">
-                                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop"
-                                        alt="Avatar" class="user-card-avatar" id="cardAvatarImg">
-                                    <div class="avatar-change-overlay"><i class="fa-solid fa-camera"></i></div>
-                                </div>
-                                <div class="user-card-text">
-                                    <h4 class="user-card-name" id="cardUserName">Guest Listener</h4>
-                                    <p class="user-card-email" id="cardUserEmail">Not signed in</p>
-                                    <span class="role-badge" id="cardUserRole">Guest</span>
-                                </div>
-                            </div>
-
-                            <div class="user-card-stats">
-                                <div class="card-stat">
-                                    <span class="card-stat-num" id="cardStatLiked">0</span>
-                                    <span class="card-stat-lbl">Favorites</span>
-                                </div>
-                                <div class="card-stat">
-                                    <span class="card-stat-num" id="cardStatLocal">0</span>
-                                    <span class="card-stat-lbl">Local Tracks</span>
-                                </div>
-                                <div class="card-stat">
-                                    <span class="card-stat-num" id="cardStatPlaylists">0</span>
-                                    <span class="card-stat-lbl">Playlists</span>
-                                </div>
-                            </div>
-
-                            <div class="user-card-footer">
-                                <button class="btn-card-action" id="cardChangePasswordBtn" style="display: none;">
-                                    <i class="fa-solid fa-key"></i>
-                                    <span>Change Password</span>
-                                </button>
-                                <button class="btn-card-logout" id="cardLogoutBtn">
-                                    <i class="fa-solid fa-right-from-bracket"></i>
-                                    <span>Log Out</span>
-                                </button>
-                                <a href="/Terms" target="_blank" rel="noopener noreferrer" class="card-legal-link">
-                                    <i class="fa-solid fa-scale-balanced"></i>
-                                    <span>Terms &amp; Conditions</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <div class="dashboard-content">
-                
-                <!-- DYNAMIC HOME VIEW -->
-                <div id="homeViewContainer">
-                    <!-- QUICK MOOD & GENRE FILTER PILLS -->
-                    <div class="mood-pills-bar" id="moodPillsBar">
-                        <button class="mood-pill active" data-mood="all"><i class="fa-solid fa-layer-group"></i> All Sounds</button>
-                        <button class="mood-pill" data-mood="trending"><i class="fa-solid fa-fire"></i> Trending</button>
-                        <button class="mood-pill" data-mood="synth"><i class="fa-solid fa-bolt"></i> Synth & Electronic</button>
-                        <button class="mood-pill" data-mood="chill"><i class="fa-solid fa-mug-hot"></i> Chill & Lofi</button>
-                        <button class="mood-pill" data-mood="acoustic"><i class="fa-solid fa-guitar"></i> Acoustic</button>
-                        <button class="mood-pill" data-mood="favorites"><i class="fa-solid fa-heart"></i> Liked Tracks</button>
-                        <button class="mood-pill" data-mood="local"><i class="fa-solid fa-lock"></i> Private Vault</button>
-                    </div>
-
-                    <section class="hero-banner" id="heroBanner" style="display: none;">
-                        <div class="hero-body">
-                            <span class="badge-tag"><i class="fa-solid fa-star"></i> Recommended For You</span>
-                            <h1 class="hero-title" id="heroTitle">No Recommendations Yet</h1>
-                            <p class="hero-desc" id="heroDesc">Discover new sounds uploaded by the community.</p>
-                            <div class="hero-actions">
-                                <button class="btn btn-green" id="heroListenNowBtn"><i class="fa-solid fa-play"></i> Listen Now</button>
-                                <button class="btn btn-glass" id="heroQueueBtn"><i class="fa-solid fa-plus"></i> Add to Queue</button>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- JUMP BACK IN / RECENTLY PLAYED SECTION -->
-                    <section id="homeRecentSection" style="margin-bottom: 36px; display: none;">
-                        <div class="section-title-row">
-                            <div class="title-with-badge">
-                                <h3><i class="fa-solid fa-clock-rotate-left" style="color: var(--accent-green); margin-right: 8px;"></i> Jump Back In</h3>
-                                <span class="view-pill">Recent</span>
-                            </div>
-                            <button class="btn-text-action" id="viewAllRecentBtn">View Full History <i class="fa-solid fa-arrow-right"></i></button>
-                        </div>
-                        <div class="cards-grid" id="homeRecentGrid"></div>
-                    </section>
-
-                    <section id="latestUploadsSection" style="margin-bottom: 36px;">
-                        <div class="section-title-row">
-                            <h3 id="catalogSectionHeading">Latest Server Uploads</h3>
-                            <span class="view-pill" id="catalogCountPill">Library</span>
-                        </div>
-                        <div class="cards-grid" id="latestUploadsGrid"></div>
-                    </section>
-
-                    <!-- CURATED SOUNDSCAPES & MIXES -->
-                    <section id="curatedMixesSection" style="margin-bottom: 36px;">
-                        <div class="section-title-row">
-                            <div class="title-with-badge">
-                                <h3>Curated Soundscapes</h3>
-                                <span class="view-pill view-pill-vibes">Smart Vibes</span>
-                            </div>
-                            <p style="font-size: 13px; color: var(--text-muted);">Hand-picked dynamic soundscapes for every mood</p>
-                        </div>
-                        <div class="mixes-grid" id="curatedMixesGrid"></div>
-                    </section>
-                </div>
-
-                <!-- PLAYLIST DETAIL BANNER -->
-                <section class="playlist-detail-banner" id="playlistDetailBanner" style="display: none;">
-                    <div class="playlist-detail-cover-box">
-                        <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop" 
-                             id="plDetailCover" alt="Playlist Cover">
-                    </div>
-                    <div class="playlist-detail-info">
-                        <span class="playlist-tag-pill">Playlist</span>
-                        <h1 class="playlist-detail-title" id="plDetailTitle">Playlist Title</h1>
-                        <p class="playlist-detail-desc" id="plDetailDesc">Curated songs and local tracks played sequentially in order.</p>
-                        <div class="playlist-detail-meta">
-                            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop" 
-                                 class="pl-meta-avatar" id="plCreatorAvatar" alt="Creator">
-                            <span class="pl-meta-author" id="plCreatorName">Guest</span>
-                            <span class="pl-meta-dot">•</span>
-                            <span id="plMetaSongCount">0 songs</span>
-                            <span class="pl-meta-dot">•</span>
-                            <span id="plMetaDuration">0 min 0 sec</span>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- PLAYLIST ACTION BAR -->
-                <div class="playlist-action-bar" id="playlistActionBar" style="display: none;">
-                    <button class="pl-big-play-btn" id="plBigPlayBtn" title="Play Playlist in Order">
-                        <i class="fa-solid fa-play"></i>
-                    </button>
-                    <button class="pl-add-songs-btn" id="plActionAddSongsBtn" title="Add Songs to Playlist">
-                        <i class="fa-solid fa-circle-plus"></i>
-                        <span>Add Songs</span>
-                    </button>
-                    <button class="ctrl-btn pl-action-icon-btn" id="plActionShuffleBtn" title="Shuffle Playlist">
-                        <i class="fa-solid fa-shuffle"></i>
-                    </button>
-                    <!-- SHARE PLAYLIST BUTTON -->
-                    <button class="ctrl-btn pl-action-icon-btn" id="plActionShareBtn" title="Copy Shareable Link">
-                        <i class="fa-solid fa-share-nodes"></i>
-                    </button>
-                    <button class="ctrl-btn pl-action-icon-btn" id="plActionEditBtn" title="Edit Playlist Details">
-                        <i class="fa-solid fa-pen"></i>
-                    </button>
-                    <button class="ctrl-btn pl-action-icon-btn delete-pl-btn" id="plActionDeleteBtn" title="Delete Playlist">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
-                </div>
-
-                <!-- MAIN TRACKS LIST (HIDDEN ON HOME) -->
-                <section class="tracklist-section" id="mainTracklistSection" style="display: none;">
-                    <div class="section-title-row">
-                        <div class="title-with-badge">
-                            <h3 id="tracklistHeading">Tracks</h3>
-                            <span class="view-pill" id="viewFilterPill" style="display: none;">Filtered</span>
-                        </div>
-                        <div class="section-actions" id="tracklistActions">
-                            <button class="btn-text-action btn-delete-pl-inline" id="deleteCurrentPlaylistBtn" style="display: none;" title="Delete this playlist">
-                                <i class="fa-solid fa-trash-can"></i> Delete Playlist
-                            </button>
-                            <button class="btn-text-action" id="playAllBtn" title="Play all listed tracks">
-                                <i class="fa-solid fa-play"></i> Play All
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="track-list-header">
-                        <span class="th-num">#</span>
-                        <span class="th-cover"></span>
-                        <span class="th-title">Title</span>
-                        <span class="th-album">Album</span>
-                        <span class="th-time"><i class="fa-regular fa-clock"></i></span>
-                        <span class="th-actions">Actions</span>
-                    </div>
-
-                    <div class="track-list" id="trackList"></div>
-                </section>
-            </div>
-        </main>
-    </div>
-
-    <!-- ENLARGED COVER ART MODAL -->
-    <div class="cover-expanded-modal" id="coverExpandedModal">
-        <div class="expanded-modal-backdrop" id="coverModalBackdrop"></div>
-        <div class="expanded-card">
-            <button class="expanded-minimize-btn" id="coverMinimizeBtn" title="Minimize / Close Artwork (Esc)">
-                <i class="fa-solid fa-down-left-and-up-right-to-center"></i>
-            </button>
-            <div class="expanded-img-wrapper">
-                <img src="" id="expandedCoverImg" alt="Album Art">
-            </div>
-            <div class="expanded-info">
-                <h2 id="expandedCoverTitle">Song Title</h2>
-                <p id="expandedCoverArtist">Artist Name</p>
-
-                <div class="expanded-music-status">
-                    <div class="expanded-ctrl-row">
-                        <button class="ctrl-btn" id="expandedShuffleBtn" title="Shuffle"><i class="fa-solid fa-shuffle"></i></button>
-                        <button class="ctrl-btn" id="expandedPrevBtn" title="Previous Track"><i class="fa-solid fa-backward-step"></i></button>
-                        <button class="ctrl-btn btn-play-pause playPauseBtn" id="expandedPlayPauseBtn" title="Play / Pause"><i class="fa-solid fa-play"></i></button>
-                        <button class="ctrl-btn" id="expandedNextBtn" title="Next Track"><i class="fa-solid fa-forward-step"></i></button>
-                        <button class="ctrl-btn" id="expandedRepeatBtn" title="Repeat"><i class="fa-solid fa-repeat"></i></button>
-                    </div>
-
-                    <div class="expanded-scrub-row">
-                        <span class="time-lbl" id="expandedCurrentTime">0:00</span>
-                        <div class="slider-track" id="expandedProgressSlider" title="Seek track">
-                            <div class="slider-fill" id="expandedProgressFill"></div>
-                        </div>
-                        <span class="time-lbl" id="expandedDuration">0:00</span>
-                    </div>
-                </div>
-
-                <!-- REAL-TIME AUDIO SPECTRUM VISUALIZER -->
-                <div class="visualizer-container" id="expandedVisualizerContainer">
-                    <canvas id="expandedVisualizerCanvas" class="visualizer-canvas"></canvas>
-                </div>
-
-                <div class="expanded-actions">
-                    <button class="btn btn-glass btn-min-trigger" id="expandedCloseBtn">
-                        <i class="fa-solid fa-compress"></i> Minimize
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- UPLOAD MODAL -->
-    <div class="modal-overlay" id="uploadSongModal">
-        <div class="modal-box modal-box-large">
-            <div class="modal-header">
-                <h3 id="uploadModalTitle"><i class="fa-solid fa-music"></i> Save Song with Cover Art</h3>
-                <button class="modal-close-btn" id="closeUploadModalBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <div class="upload-modal-content">
-                    <div class="cover-upload-section">
-                        <div class="cover-preview-box" id="coverPreviewBox" title="Click to upload or take a photo">
-                            <img id="uploadCoverPreview" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop" alt="Cover Preview">
-                            <div class="cover-overlay-hint">
-                                <i class="fa-solid fa-camera"></i>
-                                <span>Change Cover</span>
-                            </div>
-                        </div>
-                        <input type="file" id="songCoverInput" accept="image/*" style="display: none;">
-                        <button type="button" class="btn-upload-cover-btn" id="chooseCoverBtn">
-                            <i class="fa-solid fa-image"></i> Take / Choose Photo
-                        </button>
-                    </div>
-
-                    <div class="song-meta-section">
-                        <div class="form-group">
-                            <label>Audio File (MP3, WAV, OGG, M4A, FLAC) *</label>
-                            <div class="audio-picker-box">
-                                <input type="file" id="songAudioInput" accept="audio/*" style="display: none;">
-                                <button type="button" class="btn btn-glass btn-pick-audio" id="chooseAudioBtn">
-                                    <i class="fa-solid fa-file-audio"></i> Browse Audio File
-                                </button>
-                                <span class="audio-filename-display" id="audioFileNameDisplay">No file chosen</span>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="uploadSongTitle">Song Title *</label>
-                            <input type="text" id="uploadSongTitle" placeholder="e.g. Blinding Lights" maxlength="60">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="uploadSongArtist">Artist Name</label>
-                            <input type="text" id="uploadSongArtist" placeholder="e.g. The Weeknd" maxlength="60">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="uploadSongAlbum">Album Name</label>
-                            <input type="text" id="uploadSongAlbum" placeholder="e.g. After Hours" maxlength="60">
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-glass" id="cancelUploadBtn">Cancel</button>
-                <button class="btn btn-green" id="confirmUploadBtn">
-                    <i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">Upload Privately & Play</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- CREATE PLAYLIST MODAL -->
-    <div class="modal-overlay" id="createPlaylistModal">
-        <div class="modal-box">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-plus-circle"></i> Create New Playlist</h3>
-                <button class="modal-close-btn" id="closeCreateModalBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <label for="newPlaylistName">Playlist Name</label>
-                <input type="text" id="newPlaylistName" placeholder="e.g., Late Night Drive, Workout Beats..." maxlength="40">
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-glass" id="cancelCreatePlaylistBtn">Cancel</button>
-                <button class="btn btn-green" id="confirmCreatePlaylistBtn">Create Playlist</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- EDIT PLAYLIST MODAL -->
-    <div class="modal-overlay" id="editPlaylistModal">
-        <div class="modal-box modal-box-large">
-            <div class="modal-header">
-                <h3 id="editPlaylistModalTitle"><i class="fa-solid fa-pen-to-square"></i> Edit Playlist Details</h3>
-                <button class="modal-close-btn" id="closeEditPlaylistModalBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <div class="upload-modal-content">
-                    <div class="cover-upload-section">
-                        <div class="cover-preview-box" id="editPlaylistCoverBox" title="Click to change playlist cover">
-                            <img id="editPlaylistCoverPreview" src="" alt="Playlist Cover Preview">
-                            <div class="cover-overlay-hint">
-                                <i class="fa-solid fa-camera"></i>
-                                <span>Change Cover</span>
-                            </div>
-                        </div>
-                        <input type="file" id="editPlaylistCoverInput" accept="image/*" style="display: none;">
-                    </div>
-
-                    <div class="song-meta-section">
-                        <div class="form-group">
-                            <label for="editPlaylistName">Playlist Name *</label>
-                            <input type="text" id="editPlaylistName" placeholder="e.g. Driving Vibes" maxlength="40">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="editPlaylistDesc">Description</label>
-                            <textarea id="editPlaylistDesc" placeholder="Add an optional description" rows="3"></textarea>
-                        </div>
-
-                        <div class="form-group checkbox-group">
-                            <input type="checkbox" id="editPlaylistPrivate">
-                            <label for="editPlaylistPrivate">Keep this playlist Private (Only you can see it)</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-glass" id="cancelEditPlaylistBtn">Cancel</button>
-                <button class="btn btn-green" id="confirmEditPlaylistBtn">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Changes
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ADD TO PLAYLIST MODAL -->
-    <div class="modal-overlay" id="addToPlaylistModal">
-        <div class="modal-box">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-folder-plus"></i> Add to Playlist</h3>
-                <button class="modal-close-btn" id="closeAddModalBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <p class="modal-subtitle" id="addToPlaylistSongTitle">Select a playlist for this track:</p>
-                <div class="modal-playlist-list" id="modalPlaylistOptions"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- SELECT SONGS MODAL -->
-    <div class="modal-overlay" id="selectSongsModal">
-        <div class="modal-box modal-box-large">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-layer-group"></i> Add Songs to <span id="selectSongsModalPlName" style="color: var(--accent-green);">Playlist</span></h3>
-                <button class="modal-close-btn" id="closeSelectSongsModalBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <div class="search-bar" style="margin-bottom: 16px;">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="searchSongsForPlInput" placeholder="Search by title, artist, or tag (local / cloud)...">
-                </div>
-                <div class="select-songs-list" id="selectSongsList"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-green" id="doneSelectSongsBtn">Done</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- QUEUE DRAWER PANEL -->
-    <div class="queue-panel" id="queuePanel">
-        <div class="queue-panel-header">
-            <h4><i class="fa-solid fa-list-ol"></i> Play Queue</h4>
-            <div class="queue-header-actions">
-                <button class="queue-clear-btn" id="clearQueueBtn" title="Clear upcoming queue">Clear</button>
-                <button class="queue-close-btn" id="queueCloseBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-        </div>
-        <div class="queue-panel-content" id="queueList"></div>
-    </div>
-
-    <!-- FOOTER PLAYER BAR -->
-    <footer class="player-bar" id="playerBar">
-        <div class="mobile-top-progress">
-            <div class="mobile-top-progress-fill" id="mobileTopProgressFill"></div>
-        </div>
-
-        <div class="player-track-meta">
-            <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=100&auto=format&fit=crop"
-                alt="Cover" class="meta-cover clickable-cover" id="currentCover" title="Click to enlarge artwork">
-            <div class="meta-details">
-                <div class="meta-title-row">
-                    <span class="meta-title clickable-title" id="currentTitle" title="Click to view now playing &amp; artwork">No Track Selected</span>
-                    <div class="sound-wave" id="soundWave" title="Sound Bar Visualizer">
-                        <span class="sound-bar b1"></span>
-                        <span class="sound-bar b2"></span>
-                        <span class="sound-bar b3"></span>
-                        <span class="sound-bar b4"></span>
-                    </div>
-                </div>
-                <span class="meta-artist" id="currentArtist">Select or upload a track</span>
-            </div>
-            <button class="like-btn" id="playerLikeBtn" style="margin-left: 8px;" title="Add to favorites">
-                <i class="fa-regular fa-heart"></i>
+    <!-- ===================== SIDEBAR ===================== -->
+    <aside class="sidebar" id="sidebar" aria-label="Library">
+        <div class="sidebar-top">
+            <a href="#/" class="brand">
+                <img src="/favicon.svg" alt="" width="30" height="30">
+                <span>Sohify</span>
+            </a>
+            <button class="icon-btn sidebar-close" id="sidebarClose" aria-label="Close menu">
+                <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <div class="player-center-controls">
-            <div class="control-btns">
-                <button class="ctrl-btn" id="shuffleBtn" title="Shuffle (S)"><i class="fa-solid fa-shuffle"></i></button>
-                <button class="ctrl-btn" id="prevBtn" title="Previous Track"><i class="fa-solid fa-backward-step"></i></button>
-                <button class="ctrl-btn btn-play-pause playPauseBtn" id="mainPlayPauseBtn" title="Play / Pause (Space)"><i class="fa-solid fa-play"></i></button>
-                <button class="ctrl-btn skip-next-btn" id="nextBtn" title="Next Track"><i class="fa-solid fa-forward-step"></i></button>
-                <button class="ctrl-btn" id="repeatBtn" title="Repeat Mode (R)"><i class="fa-solid fa-repeat"></i></button>
-            </div>
+        <nav class="side-nav">
+            <a href="#/" class="side-link" data-route="home"><i class="fa-solid fa-house"></i><span>Home</span></a>
+            <a href="#/songs" class="side-link" data-route="songs"><i class="fa-solid fa-music"></i><span>All songs</span></a>
+        </nav>
 
-            <div class="playback-scrub">
-                <span class="time-lbl" id="currentTimeLbl">0:00</span>
-                <div class="slider-track" id="progressSlider" title="Click or drag to seek">
-                    <div class="slider-fill" id="progressFill"></div>
-                </div>
-                <span class="time-lbl" id="durationLbl">0:00</span>
-            </div>
+        <div class="side-section">
+            <p class="side-heading">Your library</p>
+            <a href="#/liked" class="side-link" data-route="liked">
+                <i class="fa-solid fa-heart"></i><span>Liked songs</span><span class="side-count" id="likedCount"></span>
+            </a>
+            <a href="#/uploads" class="side-link" data-route="uploads">
+                <i class="fa-solid fa-cloud-arrow-up"></i><span>My uploads</span><span class="side-count" id="uploadsCount"></span>
+            </a>
+            <a href="#/recent" class="side-link" data-route="recent">
+                <i class="fa-solid fa-clock-rotate-left"></i><span>Recently played</span>
+            </a>
         </div>
 
-        <div class="player-right-controls">
-            <button class="ctrl-btn speed-btn" id="speedBtn" title="Playback Speed">1.0x</button>
-            <button class="ctrl-btn" id="sleepTimerBtn" title="Sleep Timer">
-                <i class="fa-solid fa-moon"></i>
-                <span class="timer-badge" id="sleepTimerBadge" style="display: none;"></span>
+        <div class="side-section side-playlists">
+            <div class="side-heading-row">
+                <p class="side-heading">Playlists</p>
+                <button class="icon-btn sm" id="newPlaylistBtn" title="New playlist" aria-label="New playlist">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+            </div>
+            <ul class="side-pl-list" id="sidebarPlaylists"></ul>
+        </div>
+
+        <div class="sidebar-foot">
+            <a href="/Terms" target="_blank" rel="noopener">Terms</a>
+            <span aria-hidden="true">·</span>
+            <a href="/">About Sohify</a>
+        </div>
+    </aside>
+    <div class="scrim" id="scrim" hidden></div>
+
+    <!-- ===================== MAIN ===================== -->
+    <main class="main">
+        <header class="topbar">
+            <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+
+            <label class="search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" id="searchInput" placeholder="Search songs, artists or albums" autocomplete="off" aria-label="Search">
+                <kbd class="search-kbd">/</kbd>
+            </label>
+
+            <div class="topbar-right">
+                <button class="btn btn-secondary" id="uploadBtn" title="Upload a song">
+                    <i class="fa-solid fa-arrow-up-from-bracket"></i><span class="hide-sm">Upload</span>
+                </button>
+
+                <div class="guest-actions" id="guestActions" hidden>
+                    <a href="/Login?next=/Dashboard" class="btn btn-ghost">Log in</a>
+                    <a href="/Sign-Up" class="btn btn-primary">Sign up</a>
+                </div>
+
+                <div class="profile" id="profile" hidden>
+                    <button class="profile-btn" id="profileBtn" aria-haspopup="menu" aria-expanded="false">
+                        <span class="avatar" id="avatarSmall"></span>
+                        <span class="profile-name hide-sm" id="profileName"></span>
+                        <i class="fa-solid fa-chevron-down hide-sm"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="content" id="content" tabindex="-1"></div>
+    </main>
+
+    <!-- ===================== PLAYER BAR ===================== -->
+    <footer class="player" id="player" aria-label="Player">
+        <div class="player-left">
+            <button class="p-cover" data-open-np title="Open now playing" aria-label="Open now playing">
+                <img data-np="cover" alt="">
             </button>
-            <button class="ctrl-btn" id="queueBtn" title="View Queue"><i class="fa-solid fa-list"></i></button>
-            <div class="volume-box" title="Volume Slider (Scroll or Drag)">
-                <i class="fa-solid fa-volume-high" id="volumeIcon"></i>
-                <div class="slider-track" id="volumeSlider">
-                    <div class="slider-fill" id="volumeFill" style="width: 70%;"></div>
-                </div>
+            <div class="p-meta" data-open-np>
+                <span class="p-title" data-np="title">Nothing playing</span>
+                <span class="p-artist" data-np="artist">Pick a song to start</span>
+            </div>
+            <button class="icon-btn like-btn hide-mobile" data-cmd="like" aria-label="Like"><i class="fa-regular fa-heart"></i></button>
+        </div>
+
+        <div class="player-center">
+            <div class="controls">
+                <button class="icon-btn" data-cmd="shuffle" title="Shuffle (S)" aria-label="Shuffle"><i class="fa-solid fa-shuffle"></i></button>
+                <button class="icon-btn" data-cmd="prev" title="Previous" aria-label="Previous"><i class="fa-solid fa-backward-step"></i></button>
+                <button class="play-btn" data-cmd="toggle" title="Play (Space)" aria-label="Play"><i class="fa-solid fa-play"></i></button>
+                <button class="icon-btn" data-cmd="next" title="Next" aria-label="Next"><i class="fa-solid fa-forward-step"></i></button>
+                <button class="icon-btn" data-cmd="repeat" title="Repeat (R)" aria-label="Repeat"><i class="fa-solid fa-repeat"></i></button>
+            </div>
+            <div class="scrub">
+                <span class="time" data-np="current">0:00</span>
+                <input type="range" class="range" data-bind="seek" min="0" max="1000" value="0" step="1" aria-label="Seek">
+                <span class="time" data-np="duration">0:00</span>
             </div>
         </div>
 
-        <button class="mobile-expand-btn" id="mobileExpandBtn" aria-label="Expand Now Playing">
-            <i class="fa-solid fa-chevron-up"></i>
-        </button>
+        <div class="player-right">
+            <button class="chip-btn" id="speedBtn" title="Playback speed" aria-label="Playback speed">1×</button>
+            <button class="icon-btn has-badge" id="sleepBtn" title="Sleep timer" aria-label="Sleep timer">
+                <i class="fa-solid fa-moon"></i><span class="badge" id="sleepBadge" hidden></span>
+            </button>
+            <button class="icon-btn" data-cmd="queue" title="Queue (Q)" aria-label="Queue"><i class="fa-solid fa-list"></i></button>
+            <div class="volume">
+                <button class="icon-btn" data-cmd="mute" title="Mute (M)" aria-label="Mute"><i class="fa-solid fa-volume-high"></i></button>
+                <input type="range" class="range" data-bind="volume" min="0" max="100" value="80" aria-label="Volume">
+            </div>
+        </div>
+
+        <div class="player-mobile">
+            <button class="icon-btn like-btn" data-cmd="like" aria-label="Like"><i class="fa-regular fa-heart"></i></button>
+            <button class="icon-btn lg" data-cmd="toggle" aria-label="Play"><i class="fa-solid fa-play"></i></button>
+        </div>
+        <div class="mobile-progress"><span data-np="bar"></span></div>
     </footer>
+</div>
 
-    <!-- MOBILE FULL-SCREEN SHEET MODAL -->
-    <div class="mobile-now-playing-sheet" id="mobileSheet">
-        <div class="sheet-header">
-            <button class="sheet-close-btn" id="sheetCloseBtn" aria-label="Close Fullscreen Sheet">
-                <i class="fa-solid fa-chevron-down"></i>
-            </button>
-            <span class="sheet-header-title">Now Playing</span>
-            <div style="display: flex; gap: 12px; align-items: center;">
-                <button class="ctrl-btn" id="sheetQueueBtn" title="Queue"><i class="fa-solid fa-list"></i></button>
+<!-- ===================== NOW PLAYING ===================== -->
+<section class="np-view" id="nowPlaying" hidden aria-label="Now playing">
+    <div class="np-backdrop" id="npBackdrop"></div>
+    <div class="np-inner">
+        <header class="np-head">
+            <button class="icon-btn" id="npClose" aria-label="Close now playing"><i class="fa-solid fa-chevron-down"></i></button>
+            <div class="np-context">
+                <span>Playing from</span>
+                <strong data-np="context">—</strong>
             </div>
+            <button class="icon-btn" data-cmd="queue" aria-label="Queue"><i class="fa-solid fa-list"></i></button>
+        </header>
+        <div class="np-art"><img data-np="cover" alt=""></div>
+        <div class="np-meta">
+            <div>
+                <h2 data-np="title">Nothing playing</h2>
+                <p data-np="artist"></p>
+            </div>
+            <button class="icon-btn lg like-btn" data-cmd="like" aria-label="Like"><i class="fa-regular fa-heart"></i></button>
         </div>
-
-        <div class="sheet-art-container">
-            <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop"
-                alt="Large Album Cover" id="sheetCover">
+        <input type="range" class="range" data-bind="seek" min="0" max="1000" value="0" aria-label="Seek">
+        <div class="np-times"><span data-np="current">0:00</span><span data-np="duration">0:00</span></div>
+        <div class="np-controls">
+            <button class="icon-btn lg" data-cmd="shuffle" aria-label="Shuffle"><i class="fa-solid fa-shuffle"></i></button>
+            <button class="icon-btn xl" data-cmd="prev" aria-label="Previous"><i class="fa-solid fa-backward-step"></i></button>
+            <button class="play-btn xl" data-cmd="toggle" aria-label="Play"><i class="fa-solid fa-play"></i></button>
+            <button class="icon-btn xl" data-cmd="next" aria-label="Next"><i class="fa-solid fa-forward-step"></i></button>
+            <button class="icon-btn lg" data-cmd="repeat" aria-label="Repeat"><i class="fa-solid fa-repeat"></i></button>
         </div>
+        <div class="np-volume">
+            <button class="icon-btn" data-cmd="mute" aria-label="Mute"><i class="fa-solid fa-volume-high"></i></button>
+            <input type="range" class="range" data-bind="volume" min="0" max="100" value="80" aria-label="Volume">
+        </div>
+    </div>
+</section>
 
-        <div>
-            <div class="sheet-meta-row">
+<!-- ===================== QUEUE DRAWER ===================== -->
+<aside class="drawer" id="queueDrawer" hidden aria-label="Queue">
+    <header class="drawer-head">
+        <h3>Queue</h3>
+        <button class="icon-btn" id="queueClose" aria-label="Close queue"><i class="fa-solid fa-xmark"></i></button>
+    </header>
+    <div class="drawer-body" id="queueBody"></div>
+</aside>
+
+<!-- ===================== DIALOGS ===================== -->
+
+<!-- Upload / edit song -->
+<dialog class="modal" id="songDialog">
+    <form method="dialog" class="modal-card" id="songForm" novalidate>
+        <header class="modal-head">
+            <h3 id="songDialogTitle">Upload a song</h3>
+            <button type="button" class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="modal-body">
+            <div class="dropzone" id="audioDrop" tabindex="0" role="button" aria-label="Choose an audio file">
+                <i class="fa-solid fa-file-audio"></i>
                 <div>
-                    <h2 class="sheet-song-title" id="sheetTitle">No Track Selected</h2>
-                    <p class="sheet-artist-name" id="sheetArtist">Select or upload a track</p>
+                    <strong id="audioName">Choose an audio file</strong>
+                    <span id="audioHint">or drag it here · MP3, WAV, FLAC, M4A, OGG · max 50 MB</span>
                 </div>
-                <div class="sheet-meta-actions">
-                    <div class="sound-wave" id="sheetSoundWave">
-                        <span class="sound-bar b1"></span>
-                        <span class="sound-bar b2"></span>
-                        <span class="sound-bar b3"></span>
-                        <span class="sound-bar b4"></span>
-                    </div>
-                    <button class="like-btn" id="sheetLikeBtn" style="font-size: 24px;" title="Add to favorites">
-                        <i class="fa-regular fa-heart"></i>
-                    </button>
-                </div>
+                <input type="file" id="audioInput" accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.aac" hidden>
             </div>
 
-            <div class="sheet-scrub-container">
-                <div class="slider-track" id="sheetProgressSlider" style="height: 6px;">
-                    <div class="slider-fill" id="sheetProgressFill"></div>
-                </div>
-                <div class="sheet-time-row">
-                    <span id="sheetCurrentTime">0:00</span>
-                    <span id="sheetDuration">0:00</span>
-                </div>
-            </div>
-
-            <div class="sheet-controls-row">
-                <button class="sheet-ctrl-btn" id="sheetShuffleBtn"><i class="fa-solid fa-shuffle"></i></button>
-                <button class="sheet-ctrl-btn" id="sheetPrevBtn"><i class="fa-solid fa-backward-step"></i></button>
-                <button class="sheet-play-pause-btn playPauseBtn" id="sheetPlayPauseBtn"><i class="fa-solid fa-play"></i></button>
-                <button class="sheet-ctrl-btn" id="sheetNextBtn"><i class="fa-solid fa-forward-step"></i></button>
-                <button class="sheet-ctrl-btn" id="sheetRepeatBtn"><i class="fa-solid fa-repeat"></i></button>
-            </div>
-
-            <div class="sheet-volume-row">
-                <i class="fa-solid fa-volume-low" id="sheetVolMuteIcon"></i>
-                <div class="slider-track" id="sheetVolumeSlider">
-                    <div class="slider-fill" id="sheetVolumeFill" style="width: 70%;"></div>
-                </div>
-                <i class="fa-solid fa-volume-high"></i>
-            </div>
-        </div>
-    </div>
-
-    <!-- SLEEP TIMER MODAL -->
-    <div class="modal-overlay" id="sleepTimerModal">
-        <div class="modal-box" style="max-width: 380px;">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-moon" style="color: var(--accent-purple);"></i> Sleep Timer</h3>
-                <button class="modal-close-btn" id="closeSleepTimerBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <p id="sleepTimerStatusText" style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-                    Audio will gently fade out when the timer ends.
-                </p>
-                <div class="sleep-timer-options">
-                    <button class="sleep-opt-btn" data-minutes="15"><i class="fa-regular fa-clock"></i> 15 Minutes</button>
-                    <button class="sleep-opt-btn" data-minutes="30"><i class="fa-regular fa-clock"></i> 30 Minutes</button>
-                    <button class="sleep-opt-btn" data-minutes="45"><i class="fa-regular fa-clock"></i> 45 Minutes</button>
-                    <button class="sleep-opt-btn" data-minutes="60"><i class="fa-regular fa-clock"></i> 60 Minutes (1 Hour)</button>
-                    <button class="sleep-opt-btn" data-minutes="track"><i class="fa-solid fa-forward-step"></i> End of Current Song</button>
-                    <button class="sleep-opt-btn cancel-timer-btn" id="turnOffSleepTimerBtn" style="display: none;">
-                        <i class="fa-solid fa-stop"></i> Turn Off Timer
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- PLAYBACK SPEED POPOVER -->
-    <div class="speed-popover" id="speedPopover">
-        <div class="speed-option" data-speed="0.5">0.5x <small>Slowed</small></div>
-        <div class="speed-option" data-speed="0.75">0.75x</div>
-        <div class="speed-option active" data-speed="1.0">1.0x <small>Normal</small></div>
-        <div class="speed-option" data-speed="1.25">1.25x</div>
-        <div class="speed-option" data-speed="1.5">1.5x</div>
-        <div class="speed-option" data-speed="2.0">2.0x <small>Fast</small></div>
-    </div>
-
-    <!-- FLOATING TRACK CONTEXT MENU -->
-    <div class="track-context-menu" id="trackContextMenu" style="display: none;">
-        <div class="context-menu-item" id="ctxPlayNext"><i class="fa-solid fa-angles-right"></i> Play Next in Queue</div>
-        <div class="context-menu-item" id="ctxAddToQueue"><i class="fa-solid fa-list-check"></i> Add to Queue</div>
-        <div class="context-menu-item" id="ctxAddToPlaylist"><i class="fa-solid fa-folder-plus"></i> Add to Playlist...</div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" id="ctxDownloadTrack"><i class="fa-solid fa-download"></i> Download Audio File</div>
-        <div class="context-menu-item" id="ctxCopyLink"><i class="fa-solid fa-link"></i> Copy Audio Link</div>
-    </div>
-
-    <!-- KEYBOARD SHORTCUTS MODAL -->
-    <div class="modal-overlay" id="shortcutsModal">
-        <div class="modal-box" style="max-width: 480px;">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-keyboard" style="color: var(--accent-green);"></i> Keyboard Shortcuts</h3>
-                <button class="modal-close-btn" id="closeShortcutsModalBtn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <div class="shortcuts-grid">
-                    <div class="shortcut-row"><span class="key-badge">Space</span><span>Play / Pause current track</span></div>
-                    <div class="shortcut-row"><span class="key-badge">←</span> / <span class="key-badge">→</span><span>Seek backward / forward 5 seconds</span></div>
-                    <div class="shortcut-row"><span class="key-badge">↑</span> / <span class="key-badge">↓</span><span>Volume up / down (5%)</span></div>
-                    <div class="shortcut-row"><span class="key-badge">M</span><span>Mute / Unmute audio</span></div>
-                    <div class="shortcut-row"><span class="key-badge">S</span><span>Toggle Shuffle playback</span></div>
-                    <div class="shortcut-row"><span class="key-badge">R</span><span>Cycle Repeat mode (None / All / One)</span></div>
-                    <div class="shortcut-row"><span class="key-badge">Q</span><span>Toggle Play Queue drawer</span></div>
-                    <div class="shortcut-row"><span class="key-badge">?</span><span>Show this shortcuts guide</span></div>
-                    <div class="shortcut-row"><span class="key-badge">Esc</span><span>Close any open modal or drawer</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- CHANGE PASSWORD MODAL (Requires Old Password Identity Confirmation) -->
-    <div class="modal-overlay" id="changePasswordModal">
-        <div class="modal-box" style="max-width: 450px;">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-shield-halved"></i> Change Password</h3>
-                <button class="modal-close-btn" id="closeChangePasswordModalBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body" style="margin-bottom: 18px;">
-                <div class="cp-steps">
-                    <div class="cp-step active" id="cpStepBadge1">
-                        <span class="cp-step-num">1</span>
-                        <span>Confirm Identity</span>
-                    </div>
-                    <div class="cp-step-line" id="cpStepLine"></div>
-                    <div class="cp-step" id="cpStepBadge2">
-                        <span class="cp-step-num">2</span>
-                        <span>New Password</span>
-                    </div>
-                </div>
-
-                <div class="cp-account-chip">
-                    <i class="fa-solid fa-user-shield"></i>
-                    <span>Account: <strong id="cpAccountEmail">listener@soundpulse.app</strong></span>
-                </div>
-
-                <div class="cp-alert" id="cpAlertBanner" style="display: none;"></div>
-
-                <!-- STEP 1: Verify Old Password -->
-                <div id="cpStepVerify">
-                    <p class="cp-helper-text">
-                        Before changing your password, please enter your current password to confirm your identity.
-                    </p>
-                    <div class="form-group">
-                        <label for="cpOldPassword">Current Password *</label>
-                        <div class="password-input-wrap">
-                            <input type="password" id="cpOldPassword" placeholder="Enter current password" autocomplete="current-password">
-                            <button type="button" class="btn-toggle-pw" data-target="cpOldPassword" aria-label="Show or hide current password">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
-                        </div>
-                        <span class="cp-field-error" id="cpOldPasswordError"></span>
-                    </div>
-                </div>
-
-                <!-- STEP 2: Enter & Confirm New Password (Unlocked after Step 1) -->
-                <div id="cpStepNew" style="display: none;">
-                    <div class="cp-verified-pill">
-                        <i class="fa-solid fa-circle-check"></i>
-                        <span>Identity confirmed via current password</span>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 14px;">
-                        <label for="cpNewPassword">New Password *</label>
-                        <div class="password-input-wrap">
-                            <input type="password" id="cpNewPassword" placeholder="Minimum 8 characters" autocomplete="new-password">
-                            <button type="button" class="btn-toggle-pw" data-target="cpNewPassword" aria-label="Show or hide new password">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
-                        </div>
-                        <div class="cp-strength-bar"><div class="cp-strength-fill" id="cpStrengthFill"></div></div>
-                        <span class="cp-strength-text" id="cpStrengthText">Use at least 8 characters with letters &amp; numbers</span>
-                        <span class="cp-field-error" id="cpNewPasswordError"></span>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="cpConfirmPassword">Confirm New Password *</label>
-                        <div class="password-input-wrap">
-                            <input type="password" id="cpConfirmPassword" placeholder="Re-enter new password" autocomplete="new-password">
-                            <button type="button" class="btn-toggle-pw" data-target="cpConfirmPassword" aria-label="Show or hide confirm password">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
-                        </div>
-                        <span class="cp-field-error" id="cpConfirmPasswordError"></span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="modal-footer" id="cpFooterStep1">
-                <button type="button" class="btn btn-glass" id="cancelChangePasswordBtn">Cancel</button>
-                <button type="button" class="btn btn-green" id="verifyIdentityBtn">
-                    <i class="fa-solid fa-user-check"></i> Confirm Identity
+            <div class="song-form-grid">
+                <button type="button" class="cover-pick" id="coverPick" aria-label="Choose cover image">
+                    <img id="coverPreview" alt="">
+                    <span><i class="fa-solid fa-image"></i> Cover</span>
                 </button>
+                <input type="file" id="coverInput" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" hidden>
+
+                <div class="fields">
+                    <label class="field">
+                        <span>Title <em>*</em></span>
+                        <input type="text" id="songTitle" maxlength="100" placeholder="Song title" required>
+                    </label>
+                    <label class="field">
+                        <span>Artist</span>
+                        <input type="text" id="songArtist" maxlength="100" placeholder="Artist name">
+                    </label>
+                    <label class="field">
+                        <span>Album</span>
+                        <input type="text" id="songAlbum" maxlength="100" placeholder="Optional">
+                    </label>
+                </div>
             </div>
-            <div class="modal-footer" id="cpFooterStep2" style="display: none;">
-                <button type="button" class="btn btn-glass" id="cpBackToVerifyBtn">
-                    <i class="fa-solid fa-arrow-left"></i> Back
+
+            <fieldset class="visibility" id="visibilityField" hidden>
+                <legend>Who can play it?</legend>
+                <label class="radio-card"><input type="radio" name="visibility" value="private" checked>
+                    <span><strong><i class="fa-solid fa-lock"></i> Only me</strong><small>Saved to My uploads</small></span></label>
+                <label class="radio-card"><input type="radio" name="visibility" value="public">
+                    <span><strong><i class="fa-solid fa-globe"></i> Everyone</strong><small>Published to the catalog</small></span></label>
+            </fieldset>
+
+            <div class="progress" id="uploadProgress" hidden><span></span></div>
+            <p class="form-error" id="songError" role="alert"></p>
+        </div>
+        <footer class="modal-foot">
+            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn btn-primary" id="songSubmit">Upload</button>
+        </footer>
+    </form>
+</dialog>
+
+<!-- Create / edit playlist -->
+<dialog class="modal" id="playlistDialog">
+    <form method="dialog" class="modal-card" id="playlistForm" novalidate>
+        <header class="modal-head">
+            <h3 id="playlistDialogTitle">New playlist</h3>
+            <button type="button" class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="modal-body">
+            <div class="song-form-grid">
+                <button type="button" class="cover-pick" id="plCoverPick" aria-label="Choose playlist cover">
+                    <img id="plCoverPreview" alt="">
+                    <span><i class="fa-solid fa-image"></i> Cover</span>
                 </button>
-                <button type="button" class="btn btn-green" id="confirmChangePasswordBtn">
-                    <i class="fa-solid fa-key"></i> Update Password
-                </button>
+                <input type="file" id="plCoverInput" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" hidden>
+                <div class="fields">
+                    <label class="field">
+                        <span>Name <em>*</em></span>
+                        <input type="text" id="plName" maxlength="60" placeholder="My playlist" required>
+                    </label>
+                    <label class="field">
+                        <span>Description</span>
+                        <textarea id="plDesc" rows="3" maxlength="300" placeholder="Optional"></textarea>
+                    </label>
+                </div>
             </div>
+            <label class="switch-row">
+                <span><strong>Private</strong><small>Only you can see it. Turn off to share with a link.</small></span>
+                <input type="checkbox" id="plPrivate" class="switch" checked>
+            </label>
+            <p class="form-error" id="plError" role="alert"></p>
+        </div>
+        <footer class="modal-foot">
+            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn btn-primary" id="plSubmit">Create</button>
+        </footer>
+    </form>
+</dialog>
+
+<!-- Add one song to playlists -->
+<dialog class="modal" id="addToPlDialog">
+    <div class="modal-card">
+        <header class="modal-head">
+            <div>
+                <h3>Add to playlist</h3>
+                <p class="modal-sub" id="addToPlSong"></p>
+            </div>
+            <button type="button" class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="modal-body">
+            <form class="inline-create" id="quickPlForm">
+                <input type="text" id="quickPlName" maxlength="60" placeholder="New playlist name" aria-label="New playlist name">
+                <button type="submit" class="btn btn-secondary"><i class="fa-solid fa-plus"></i> Create</button>
+            </form>
+            <ul class="pick-list" id="addToPlList"></ul>
+        </div>
+        <footer class="modal-foot">
+            <button type="button" class="btn btn-primary" data-close>Done</button>
+        </footer>
+    </div>
+</dialog>
+
+<!-- Add many songs to the open playlist -->
+<dialog class="modal modal-lg" id="addSongsDialog">
+    <div class="modal-card">
+        <header class="modal-head">
+            <div>
+                <h3>Add songs</h3>
+                <p class="modal-sub" id="addSongsPl"></p>
+            </div>
+            <button type="button" class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="modal-body">
+            <label class="search search-block">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" id="addSongsSearch" placeholder="Search songs" autocomplete="off" aria-label="Search songs">
+            </label>
+            <ul class="pick-list tall" id="addSongsList"></ul>
+        </div>
+        <footer class="modal-foot">
+            <button type="button" class="btn btn-primary" data-close>Done</button>
+        </footer>
+    </div>
+</dialog>
+
+<!-- Change password -->
+<dialog class="modal" id="passwordDialog">
+    <form method="dialog" class="modal-card" id="passwordForm" novalidate>
+        <header class="modal-head">
+            <h3>Change password</h3>
+            <button type="button" class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="modal-body">
+            <input type="email" id="pwUsername" autocomplete="username" hidden>
+            <label class="field">
+                <span>Current password</span>
+                <input type="password" id="pwCurrent" autocomplete="current-password">
+                <small class="field-error" id="pwCurrentErr"></small>
+            </label>
+            <a href="#" class="text-link small" id="pwForgot">Forgot your current password?</a>
+            <label class="field">
+                <span>New password</span>
+                <input type="password" id="pwNew" autocomplete="new-password" placeholder="At least 8 characters">
+                <span class="strength" id="pwStrength"><i></i><i></i><i></i><i></i></span>
+                <small class="field-error" id="pwNewErr"></small>
+            </label>
+            <label class="field">
+                <span>Confirm new password</span>
+                <input type="password" id="pwConfirm" autocomplete="new-password">
+                <small class="field-error" id="pwConfirmErr"></small>
+            </label>
+            <label class="check-row"><input type="checkbox" id="pwShow"> Show passwords</label>
+            <p class="form-hint">Other devices will be signed out. You'll get an email confirming the change.</p>
+        </div>
+        <footer class="modal-foot">
+            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn btn-primary" id="pwSubmit">Update password</button>
+        </footer>
+    </form>
+</dialog>
+
+<!-- Keyboard shortcuts -->
+<dialog class="modal" id="shortcutsDialog">
+    <div class="modal-card">
+        <header class="modal-head">
+            <h3>Keyboard shortcuts</h3>
+            <button type="button" class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="modal-body">
+            <dl class="shortcuts">
+                <dt><kbd>Space</kbd></dt><dd>Play / pause</dd>
+                <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Seek 5 seconds</dd>
+                <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next song</dd>
+                <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Volume</dd>
+                <dt><kbd>M</kbd></dt><dd>Mute</dd>
+                <dt><kbd>S</kbd></dt><dd>Shuffle</dd>
+                <dt><kbd>R</kbd></dt><dd>Repeat</dd>
+                <dt><kbd>L</kbd></dt><dd>Like current song</dd>
+                <dt><kbd>Q</kbd></dt><dd>Queue</dd>
+                <dt><kbd>/</kbd></dt><dd>Search</dd>
+                <dt><kbd>?</kbd></dt><dd>This list</dd>
+            </dl>
         </div>
     </div>
+</dialog>
 
-    <div class="toast-container" id="toastContainer"></div>
-    <audio id="audioElement" preload="auto" crossorigin="anonymous"></audio>
-    <script src="/Dashboard/script.js"></script>
+<!-- Confirm -->
+<dialog class="modal modal-sm" id="confirmDialog">
+    <form method="dialog" class="modal-card">
+        <div class="modal-body">
+            <h3 id="confirmTitle">Are you sure?</h3>
+            <p class="confirm-text" id="confirmText"></p>
+        </div>
+        <footer class="modal-foot">
+            <button value="cancel" class="btn btn-ghost">Cancel</button>
+            <button value="ok" class="btn btn-primary" id="confirmOk">Confirm</button>
+        </footer>
+    </form>
+</dialog>
+
+<!-- Popover menu (track options, speed, sleep…) -->
+<div class="menu" id="menu" role="menu" hidden></div>
+
+<!-- Drag & drop overlay -->
+<div class="drop-overlay" id="dropOverlay" hidden>
+    <div><i class="fa-solid fa-cloud-arrow-up"></i><p>Drop an audio file to upload it</p></div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp" hidden>
+<audio id="audio" preload="metadata"></audio>
+
+<script src="/Dashboard/script.js"></script>
 </body>
 </html>

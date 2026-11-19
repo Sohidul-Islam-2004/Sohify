@@ -3,141 +3,199 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#030014" />
+    <meta name="description" content="Sign in to Sohify to keep listening to your songs, playlists and private vault." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Sign In – Sound Pulse</title>
+    <title>Sign In – Sohify</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="/Login/style.css" />
   </head>
 
   <body>
-    <!-- COSMIC GRID, STARFIELD & HORIZON AURORA -->
-    <div class="cyber-grid" aria-hidden="true"></div>
-    <div class="cosmic-stars" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
-    <div class="cosmic-horizon" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
 
-    <!-- AMBIENT ORBS -->
-    <div class="bg-orbs" aria-hidden="true">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
-
-    <!-- SIGN IN LAYOUT -->
     <div class="auth-layout reverse">
-      <aside class="auth-visual">
+      <aside class="auth-visual" aria-hidden="true">
         <div class="vinyl-stage">
-          <div class="eclipse-ring eclipse-ring-outer" aria-hidden="true"></div>
-          <div class="eclipse-ring eclipse-ring-inner" aria-hidden="true"></div>
+          <div class="vinyl-ring"></div>
           <div class="vinyl">
-            <div class="vinyl-label">
-              <i class="fa-solid fa-compact-disc"></i>
-            </div>
-          </div>
-
-          <div class="feature-pills">
-            <span class="pill"><i class="fa-solid fa-fire"></i> Trending</span>
-            <span class="pill"><i class="fa-solid fa-heart"></i> Liked</span>
-            <span class="pill"
-              ><i class="fa-solid fa-clock-rotate-left"></i> Recents</span
-            >
+            <div class="vinyl-label"><i class="fa-solid fa-headphones"></i></div>
           </div>
         </div>
-
+        <div class="feature-pills">
+          <span class="pill"><i class="fa-solid fa-heart"></i> Liked songs</span>
+          <span class="pill"><i class="fa-solid fa-list"></i> Playlists</span>
+          <span class="pill"><i class="fa-solid fa-clock-rotate-left"></i> Recently played</span>
+        </div>
         <div class="visual-caption">
-          <h3>Welcome back, listener.</h3>
-          <p>Pick up right where the beat left off.</p>
+          <h3>Welcome back.</h3>
+          <p>Pick up right where your music left off.</p>
         </div>
       </aside>
 
       <main class="auth-panel">
         <div class="auth-container">
-          <a href="/" class="brand-mark">
+          <a href="/" class="brand-mark" aria-label="Sohify home">
             <span class="brand-icon" aria-hidden="true">
               <img src="/favicon.svg" alt="" class="brand-logo-svg" />
             </span>
-            <span class="brand-name">Sound <span class="neon-word">Pulse</span></span>
+            <span class="brand-name">Sohify</span>
           </a>
 
-          <div class="music-badge">
-            <i class="fa-solid fa-wave-square"></i>
-            <span>Your sound. Your vibe. Sound Pulse.</span>
-          </div>
+          <!-- ============ VIEW 1: SIGN IN ============ -->
+          <section id="loginView" class="auth-view">
+            <h2>Sign in</h2>
+            <p class="subtitle">Log in to continue listening.</p>
 
-          <h2>Welcome Back</h2>
-          <p class="subtitle">Log in to continue your sound stream.</p>
+            <div class="form-alert" id="loginAlert" role="status" hidden></div>
 
-          <form id="loginForm">
-            <div class="input-group">
-              <label for="email">Email Address</label>
-              <div class="input-with-icon">
-                <i class="fa-solid fa-envelope"></i>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  placeholder="name@example.com"
-                  autocomplete="email"
-                  required
-                />
+            <form id="loginForm" novalidate>
+              <div class="input-group">
+                <label for="email">Email address</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-envelope"></i>
+                  <input type="email" id="email" name="email" placeholder="name@example.com" autocomplete="username" required />
+                </div>
+                <span class="error-message" id="emailError"></span>
               </div>
-              <span class="error-message" id="emailError"></span>
-            </div>
 
-            <div class="input-group">
-              <label for="password">Password</label>
-              <div class="password-wrapper">
-                <i class="fa-solid fa-lock input-icon-left"></i>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="Enter your password"
-                  required
-                />
-                <button
-                  type="button"
-                  class="toggle-btn"
-                  onclick="togglePasswordVisibility('password', this)"
-                >
-                  <i class="fa-solid fa-eye"></i>
-                </button>
+              <div class="input-group">
+                <label for="password">Password</label>
+                <div class="password-wrapper">
+                  <i class="fa-solid fa-lock input-icon-left"></i>
+                  <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+                  <button type="button" class="toggle-btn" data-toggle="password" aria-label="Show password">
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+                <span class="error-message" id="passwordError"></span>
+                <span class="caps-hint" id="capsHint" hidden><i class="fa-solid fa-arrow-up"></i> Caps Lock is on</span>
               </div>
-              <span class="error-message" id="passwordError"></span>
-            </div>
 
-            <div class="form-actions">
-              <label class="checkbox-label">
-                <input type="checkbox" id="remember" /> Remember me
-              </label>
-              <a href="#" class="accent-link">Forgot password?</a>
-            </div>
+              <div class="form-actions">
+                <label class="checkbox-label" for="remember">
+                  <input type="checkbox" id="remember" />
+                  <span>Remember me</span>
+                </label>
+                <button type="button" class="link-btn" id="forgotLink">Forgot password?</button>
+              </div>
 
-            <button type="submit" class="submit-btn">
-              <i class="fa-solid fa-circle-play"></i>
-              <span>Sign In</span>
-            </button>
-          </form>
+              <button type="submit" class="submit-btn" id="loginBtn">
+                <span>Sign in</span>
+              </button>
+            </form>
 
-          <p class="switch-prompt">
-            Don't have an account? <a href="/Sign-Up">Sign up</a>
-          </p>
+            <p class="switch-prompt">Don't have an account? <a href="/Sign-Up">Sign up</a></p>
+            <p class="legal-note">
+              By signing in, you agree to our <a href="/Terms" class="accent-link">Terms &amp; Conditions</a>.
+            </p>
+          </section>
 
-          <p class="legal-note">
-            By signing in, you agree to our
-            <a href="/Terms" class="accent-link">Terms &amp; Conditions</a>.
-          </p>
+          <!-- ============ VIEW 2: FORGOT — ENTER EMAIL ============ -->
+          <section id="forgotEmailView" class="auth-view" hidden>
+            <button type="button" class="back-btn" data-back="login"><i class="fa-solid fa-arrow-left"></i> Back to sign in</button>
+            <h2>Reset your password</h2>
+            <p class="subtitle">Enter the email you use for Sohify. We'll send you a 6-digit code.</p>
+
+            <div class="form-alert" id="forgotEmailAlert" role="status" hidden></div>
+
+            <form id="forgotEmailForm" novalidate>
+              <div class="input-group">
+                <label for="forgotEmail">Email address</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-envelope"></i>
+                  <input type="email" id="forgotEmail" placeholder="name@example.com" autocomplete="email" required />
+                </div>
+                <span class="error-message" id="forgotEmailError"></span>
+              </div>
+              <button type="submit" class="submit-btn" id="forgotEmailBtn"><span>Send reset code</span></button>
+            </form>
+          </section>
+
+          <!-- ============ VIEW 3: FORGOT — ENTER CODE ============ -->
+          <section id="forgotCodeView" class="auth-view" hidden>
+            <button type="button" class="back-btn" data-back="forgotEmail"><i class="fa-solid fa-arrow-left"></i> Use a different email</button>
+            <h2>Check your email</h2>
+            <p class="subtitle">
+              If an account exists, we sent a 6-digit code to
+              <span class="target-email" id="resetTargetEmail"></span>
+            </p>
+
+            <div class="form-alert" id="forgotCodeAlert" role="status" hidden></div>
+
+            <form id="forgotCodeForm" novalidate>
+              <div class="input-group">
+                <label id="otpLabel">Enter the 6-digit code</label>
+                <div class="otp-container" role="group" aria-labelledby="otpLabel">
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" autocomplete="one-time-code" aria-label="Digit 1" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 2" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 3" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 4" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 5" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 6" />
+                </div>
+                <span class="error-message center" id="forgotCodeError"></span>
+              </div>
+              <button type="submit" class="submit-btn" id="forgotCodeBtn"><span>Verify code</span></button>
+            </form>
+
+            <p class="resend-text">
+              Didn't get it? Check spam, or
+              <button type="button" class="link-btn" id="resendResetBtn" disabled>resend in <span id="resendCountdown">45</span>s</button>
+            </p>
+          </section>
+
+          <!-- ============ VIEW 4: FORGOT — NEW PASSWORD ============ -->
+          <section id="forgotNewView" class="auth-view" hidden>
+            <h2>Choose a new password</h2>
+            <p class="subtitle">Use at least 8 characters. A mix of letters, numbers and symbols is strongest.</p>
+
+            <div class="form-alert" id="forgotNewAlert" role="status" hidden></div>
+
+            <form id="forgotNewForm" novalidate>
+              <input type="email" id="resetUsername" autocomplete="username" hidden />
+              <div class="input-group">
+                <label for="newPassword">New password</label>
+                <div class="password-wrapper">
+                  <i class="fa-solid fa-lock input-icon-left"></i>
+                  <input type="password" id="newPassword" placeholder="At least 8 characters" autocomplete="new-password" required />
+                  <button type="button" class="toggle-btn" data-toggle="newPassword" aria-label="Show password">
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+                <div class="strength-meter" id="strengthMeter" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                <span class="error-message" id="newPasswordError"></span>
+              </div>
+
+              <div class="input-group">
+                <label for="confirmNewPassword">Confirm new password</label>
+                <div class="password-wrapper">
+                  <i class="fa-solid fa-lock input-icon-left"></i>
+                  <input type="password" id="confirmNewPassword" placeholder="Re-enter new password" autocomplete="new-password" required />
+                  <button type="button" class="toggle-btn" data-toggle="confirmNewPassword" aria-label="Show password">
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+                <span class="error-message" id="confirmNewPasswordError"></span>
+              </div>
+
+              <button type="submit" class="submit-btn" id="forgotNewBtn"><span>Update password</span></button>
+            </form>
+          </section>
+
+          <!-- ============ VIEW 5: DONE ============ -->
+          <section id="forgotDoneView" class="auth-view" hidden>
+            <div class="done-icon"><i class="fa-solid fa-check"></i></div>
+            <h2 class="center">Password updated</h2>
+            <p class="subtitle center">You can now sign in with your new password. Other devices have been signed out.</p>
+            <button type="button" class="submit-btn" id="backToLoginBtn"><span>Back to sign in</span></button>
+          </section>
         </div>
       </main>
     </div>
