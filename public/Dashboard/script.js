@@ -95,6 +95,33 @@ async function copyText(text) {
     }
 }
 
+// Shrinks a picked image before upload (covers are shown at ≤ 300px, so 800px is plenty).
+// A 4 MB phone photo usually becomes ~80 KB. GIFs are kept as-is so animation isn't lost.
+async function resizeImage(file, max = 800) {
+    if (!/^image\/(jpeg|png|webp|avif)$/.test(file.type) || typeof createImageBitmap !== "function") return file;
+    try {
+        const bmp = await createImageBitmap(file);
+        const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+        if (scale === 1 && file.size < 300 * 1024) {
+            bmp.close?.();
+            return file;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(bmp.width * scale);
+        canvas.height = Math.round(bmp.height * scale);
+        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        bmp.close?.();
+        const toBlob = (type) => new Promise((r) => canvas.toBlob(r, type, 0.85));
+        let blob = await toBlob("image/webp");
+        if (!blob || blob.type !== "image/webp") blob = await toBlob("image/jpeg");
+        if (!blob || blob.size >= file.size) return file;
+        const ext = blob.type === "image/webp" ? "webp" : "jpg";
+        return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.${ext}`, { type: blob.type });
+    } catch {
+        return file;
+    }
+}
+
 /* ==========================================================================
    2. SESSION & API
    "Remember me" sessions live in localStorage, normal ones in sessionStorage.
@@ -151,7 +178,6 @@ async function api(path, { method = "GET", json, body } = {}) {
 function apiUpload(method, path, formData, onProgress) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        console.log(path);
         xhr.open(method, `/api${path}`);
         const token = sessionGet("sohify_token");
         if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
@@ -160,7 +186,7 @@ function apiUpload(method, path, formData, onProgress) {
             let data = {};
             try {
                 data = JSON.parse(xhr.responseText);
-            } catch { }
+            } catch {}
             if (xhr.status === 401 && handleAuthFailure(data)) return reject(new Error(data.message));
             if (xhr.status >= 200 && xhr.status < 300) resolve(data);
             else reject(new Error(data.message || `Upload failed (${xhr.status})`));
@@ -168,6 +194,28 @@ function apiUpload(method, path, formData, onProgress) {
         xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
         xhr.send(formData);
     });
+}
+
+// Sends audio straight to storage with a one-time signed URL (the server never holds the file).
+// Throws if direct upload isn't available, so the caller can fall back to the normal upload.
+async function uploadAudioDirect(file, onProgress) {
+    const sign = await api("/uploads/audio-url", {
+        method: "POST",
+        json: { filename: file.name, contentType: file.type || "", size: file.size }
+    });
+    await new Promise((resolve, reject) => {
+        const body = new FormData(); // same format the official Supabase browser client uses
+        body.append("cacheControl", sign.cacheControl || "31536000");
+        body.append("", file);
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", sign.uploadUrl);
+        xhr.setRequestHeader("x-upsert", "false");
+        xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Storage upload failed (${xhr.status})`)));
+        xhr.onerror = () => reject(new Error("Storage upload failed"));
+        xhr.send(body);
+    });
+    return sign.path;
 }
 
 /* ==========================================================================
@@ -199,6 +247,7 @@ const settings = Object.assign(
     })()
 );
 const saveSettings = () => localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+const saveSettingsSoon = debounce(saveSettings, 400); // for sliders that fire many times a second
 
 const isLoggedIn = () => !!state.user;
 const canEdit = (song) => !!(state.user && song && (song.uploadedBy === state.user.id || state.user.isAdmin));
@@ -376,7 +425,8 @@ function confirmDialog({ title, message, confirmText = "Confirm", danger = false
    5. DATA & ACTIONS
    ========================================================================== */
 async function loadData() {
-    const songs = await api("/songs");
+    // Both requests run at the same time instead of one after the other.
+    const [songs, lib] = await Promise.all([api("/songs"), isLoggedIn() ? api(`/users/${state.user.id}/library`) : null]);
     state.catalog = [];
     songs.forEach((s) => {
         const song = mapSong(s);
@@ -384,8 +434,7 @@ async function loadData() {
         state.catalog.push(song.id);
     });
 
-    if (isLoggedIn()) {
-        const lib = await api(`/users/${state.user.id}/library`);
+    if (lib) {
         state.likedOrder = (lib.likedSongs || []).map(String);
         state.liked = new Set(state.likedOrder);
         state.recent = (lib.recentSongs || []).map(String);
@@ -572,7 +621,7 @@ async function downloadSong(song) {
 
 function recordRecent(id) {
     state.recent = [id, ...state.recent.filter((x) => x !== id)].slice(0, 20);
-    if (isLoggedIn()) api(`/users/${state.user.id}/recent`, { method: "POST", json: { songId: id } }).catch(() => { });
+    if (isLoggedIn()) api(`/users/${state.user.id}/recent`, { method: "POST", json: { songId: id } }).catch(() => {});
 }
 
 /* ---- Track & playlist option menus --------------------------------------- */
@@ -667,7 +716,7 @@ function renderSidebar() {
             .map((pl) => {
                 const active = state.route.name === "playlist" && state.route.id === pl.id;
                 return `<li><a href="#/playlist/${pl.id}" class="side-pl ${active ? "is-active" : ""}">
-                    <img class="thumb" src="${esc(playlistCover(pl))}" alt="" loading="lazy">
+                    <img class="thumb" src="${esc(playlistCover(pl))}" alt="" loading="lazy" decoding="async">
                     <span class="side-pl-text"><strong>${esc(pl.name)}</strong><span>${pl.isPrivate ? "Private" : "Public"} · ${plural(playlistSongs(pl).length, "song")}</span></span>
                 </a></li>`;
             })
@@ -684,7 +733,7 @@ function rowHTML(song, i, { showLike = true } = {}) {
     return `<div class="row ${current ? "is-current" : ""}" data-id="${song.id}" role="button" tabindex="0" aria-label="Play ${esc(song.title)} by ${esc(song.artist)}">
         <div class="c-num"><span class="num">${i + 1}</span><i class="fa-solid fa-play"></i><i class="fa-solid fa-pause"></i><i class="fa-solid fa-volume-high"></i></div>
         <div class="c-title">
-            <img class="thumb" src="${esc(coverOf(song))}" alt="" loading="lazy">
+            <img class="thumb" src="${esc(coverOf(song))}" alt="" loading="lazy" decoding="async">
             <div class="c-title-text">
                 <div class="t-name"><span>${esc(song.title)}</span>${song.isPrivate ? `<em class="tag" title="Only you can see this"><i class="fa-solid fa-lock"></i> Private</em>` : ""}</div>
                 <div class="t-artist">${esc(song.artist)}</div>
@@ -697,20 +746,60 @@ function rowHTML(song, i, { showLike = true } = {}) {
     </div>`;
 }
 
-function tracklistHTML(ids) {
+// Long lists render in chunks: the first rows appear instantly and more are added as you scroll.
+const ROW_CHUNK = 100;
+const ROW_HEIGHT = 58;
+let rowsShown = 0;
+let rowObserver = null;
+
+function tracklistHTML(ids, count = ROW_CHUNK) {
+    rowsShown = Math.min(ids.length, count);
     return `<div class="tracklist" role="list">
         <div class="tl-head" aria-hidden="true">
             <span class="c-num">#</span><span>Title</span><span class="c-album">Album</span><span></span><span class="c-dur"><i class="fa-regular fa-clock"></i></span><span></span>
         </div>
-        ${ids.map((id, i) => rowHTML(state.songs.get(id), i, { showLike: isLoggedIn() })).join("")}
+        ${ids.slice(0, rowsShown).map((id, i) => rowHTML(state.songs.get(id), i, { showLike: isLoggedIn() })).join("")}
+        ${rowsShown < ids.length ? `<div class="tl-more" aria-hidden="true" style="height:${(ids.length - rowsShown) * ROW_HEIGHT}px"></div>` : ""}
     </div>`;
+}
+
+function mountMoreRows() {
+    rowObserver?.disconnect();
+    const sentinel = $(".tl-more", contentEl);
+    if (!sentinel || !currentView || !("IntersectionObserver" in window)) return;
+    const ids = currentView.ids;
+    const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && appendChunk(), {
+        root: contentEl,
+        rootMargin: "600px 0px"
+    });
+    rowObserver = observer;
+
+    function appendChunk() {
+        if (rowObserver !== observer || !sentinel.isConnected) return;
+        const end = Math.min(ids.length, rowsShown + ROW_CHUNK);
+        sentinel.insertAdjacentHTML(
+            "beforebegin",
+            ids.slice(rowsShown, end).map((id, k) => rowHTML(state.songs.get(id), rowsShown + k, { showLike: isLoggedIn() })).join("")
+        );
+        rowsShown = end;
+        if (rowsShown >= ids.length) {
+            observer.disconnect();
+            sentinel.remove();
+            return;
+        }
+        sentinel.style.height = `${(ids.length - rowsShown) * ROW_HEIGHT}px`;
+        // Still in view (e.g. the scrollbar was dragged to the bottom)? Keep filling.
+        const box = contentEl.getBoundingClientRect();
+        if (sentinel.getBoundingClientRect().top < box.bottom + 600) requestAnimationFrame(appendChunk);
+    }
+    observer.observe(sentinel);
 }
 
 function songCardHTML(song, listKey) {
     const current = P.currentId === song.id;
     return `<div class="card ${current ? "is-current" : ""}" data-song="${song.id}" data-list="${listKey}" role="button" tabindex="0" aria-label="Play ${esc(song.title)}">
         <div class="card-art">
-            <img src="${esc(coverOf(song))}" alt="" loading="lazy">
+            <img src="${esc(coverOf(song))}" alt="" loading="lazy" decoding="async">
             <span class="card-play" aria-hidden="true"><i class="fa-solid ${current && !audio.paused ? "fa-pause" : "fa-play"}"></i></span>
         </div>
         <div class="card-title">${esc(song.title)}</div>
@@ -720,7 +809,7 @@ function songCardHTML(song, listKey) {
 
 function playlistCardHTML(pl) {
     return `<a class="card" href="#/playlist/${pl.id}">
-        <div class="card-art"><img src="${esc(playlistCover(pl))}" alt="" loading="lazy"></div>
+        <div class="card-art"><img src="${esc(playlistCover(pl))}" alt="" loading="lazy" decoding="async"></div>
         <div class="card-title">${esc(pl.name)}</div>
         <div class="card-sub">${plural(playlistSongs(pl).length, "song")}</div>
     </a>`;
@@ -894,7 +983,7 @@ function listView(route) {
     return null;
 }
 
-function listHTML(view) {
+function listHTML(view, rowCount) {
     const h = view.head;
     const count = view.ids.length;
     const total = totalDuration(view.ids);
@@ -929,7 +1018,7 @@ function listHTML(view) {
             </div>
         </header>
         ${actions}
-        ${count ? tracklistHTML(view.ids) : view.empty}`;
+        ${count ? tracklistHTML(view.ids, rowCount) : view.empty}`;
 }
 
 let currentView = null;
@@ -956,10 +1045,13 @@ function renderView({ keepScroll = false } = {}) {
         currentView = listView(r);
         if (!currentView) return navigate("#/", true);
         state.lists = {};
-        contentEl.innerHTML = listHTML(currentView);
+        // When re-rendering in place, render enough rows to keep the scroll position.
+        const needed = keepScroll ? Math.max(ROW_CHUNK, Math.ceil((top + contentEl.clientHeight) / ROW_HEIGHT) + 20) : ROW_CHUNK;
+        contentEl.innerHTML = listHTML(currentView, needed);
         document.title = `${currentView.head.title.replace(/[“”]/g, "")} – Sohify`;
     }
     contentEl.scrollTop = keepScroll ? top : 0;
+    mountMoreRows();
 }
 
 async function loadExternalPlaylist(id) {
@@ -1192,7 +1284,7 @@ function applyVolume() {
 function setVolume(v) {
     settings.volume = Math.max(0, Math.min(1, v));
     settings.muted = settings.volume === 0;
-    saveSettings();
+    saveSettingsSoon();
     applyVolume();
 }
 
@@ -1242,7 +1334,7 @@ if ("mediaSession" in navigator) {
     ms.setActionHandler("nexttrack", () => next());
     try {
         ms.setActionHandler("seekto", (d) => (audio.currentTime = d.seekTime));
-    } catch { }
+    } catch {}
 }
 
 /* ==========================================================================
@@ -1296,19 +1388,33 @@ function syncRows() {
     syncPlayState();
 }
 
+// The player bar and now-playing screen never change, so their elements are looked up once.
+const progressEls = {
+    seek: $$('[data-bind="seek"]'),
+    current: $$('[data-np="current"]'),
+    duration: $$('[data-np="duration"]'),
+    bar: $$('[data-np="bar"]')
+};
+let lastProgress = { cur: "", dur: "", pct: -1 };
+
 function syncProgress() {
     const dur = audio.duration;
     const cur = audio.currentTime;
     const ratio = Number.isFinite(dur) && dur > 0 ? cur / dur : 0;
-    if (!P.seeking) {
-        $$('[data-bind="seek"]').forEach((r) => {
-            r.value = Math.round(ratio * 1000);
-            r.style.setProperty("--p", `${ratio * 100}%`);
+    const pct = Math.round(ratio * 1000);
+    const curText = fmtTime(cur);
+    const durText = Number.isFinite(dur) ? fmtTime(dur) : state.songs.get(P.currentId)?.duration || "0:00";
+
+    if (!P.seeking && pct !== lastProgress.pct) {
+        progressEls.seek.forEach((r) => {
+            r.value = pct;
+            r.style.setProperty("--p", `${pct / 10}%`);
         });
-        $$('[data-np="current"]').forEach((el) => (el.textContent = fmtTime(cur)));
+        progressEls.bar.forEach((el) => (el.style.width = `${pct / 10}%`));
     }
-    $$('[data-np="duration"]').forEach((el) => (el.textContent = Number.isFinite(dur) ? fmtTime(dur) : state.songs.get(P.currentId)?.duration || "0:00"));
-    $$('[data-np="bar"]').forEach((el) => (el.style.width = `${ratio * 100}%`));
+    if (!P.seeking && curText !== lastProgress.cur) progressEls.current.forEach((el) => (el.textContent = curText));
+    if (durText !== lastProgress.dur) progressEls.duration.forEach((el) => (el.textContent = durText));
+    lastProgress = { cur: P.seeking ? "" : curText, dur: durText, pct: P.seeking ? -1 : pct };
 }
 
 function syncLikes() {
@@ -1418,7 +1524,7 @@ function queueItemHTML(id, { type, index, current } = {}) {
     const s = state.songs.get(id);
     if (!s) return "";
     return `<div class="q-item ${current ? "is-current" : ""}" role="button" tabindex="0" data-q-type="${type}" data-q-index="${index}">
-        <img class="thumb" src="${esc(coverOf(s))}" alt="" loading="lazy">
+        <img class="thumb" src="${esc(coverOf(s))}" alt="" loading="lazy" decoding="async">
         <div class="q-item-text"><strong>${esc(s.title)}</strong><span>${esc(s.artist)}</span></div>
         ${type === "up" ? `<button class="icon-btn sm" data-q-remove="${index}" aria-label="Remove from queue" title="Remove"><i class="fa-solid fa-xmark"></i></button>` : ""}
     </div>`;
@@ -1667,8 +1773,10 @@ $("#coverInput").addEventListener("change", (e) => {
     if (!f) return;
     if (!f.type.startsWith("image/") || f.type === "image/svg+xml") return ($("#songError").textContent = "Choose a JPG, PNG, WEBP or GIF image.");
     if (f.size > MAX_BYTES) return ($("#songError").textContent = "That image is over 50 MB.");
-    songForm.cover = f;
-    setPreview($("#coverPreview"), f);
+    resizeImage(f, 800).then((img) => {
+        songForm.cover = img;
+        setPreview($("#coverPreview"), img);
+    });
 });
 
 $("#songForm").addEventListener("submit", async (e) => {
@@ -1706,12 +1814,24 @@ $("#songForm").addEventListener("submit", async (e) => {
             const isPublic = state.user.isAdmin && $('#songDialog input[name="visibility"]:checked').value === "public";
             fd.append("isPrivate", String(!isPublic));
             fd.append("duration", songForm.duration || "--:--");
-            fd.append("audio", songForm.audio);
             submit.textContent = "Uploading…";
             bar.hidden = false;
             const fill = bar.firstElementChild;
             fill.style.width = "0%";
-            const raw = await apiUpload("POST", "/songs", fd, (p) => (fill.style.width = `${Math.round(p * 100)}%`));
+
+            // 1) Try sending the audio straight to storage; 2) fall back to uploading through the server.
+            let audioPath = "";
+            try {
+                audioPath = await uploadAudioDirect(songForm.audio, (p) => (fill.style.width = `${Math.round(p * 95)}%`));
+            } catch (directErr) {
+                console.warn("Direct upload unavailable, using server upload:", directErr.message);
+                fill.style.width = "0%";
+            }
+            if (audioPath) fd.append("audioPath", audioPath);
+            else fd.append("audio", songForm.audio);
+
+            const raw = await apiUpload("POST", "/songs", fd, audioPath ? null : (p) => (fill.style.width = `${Math.round(p * 100)}%`));
+            fill.style.width = "100%";
             const song = mapSong(raw);
             state.songs.set(song.id, song);
             state.catalog.unshift(song.id);
@@ -1756,8 +1876,10 @@ $("#plCoverInput").addEventListener("change", (e) => {
     e.target.value = "";
     if (!f) return;
     if (!f.type.startsWith("image/") || f.type === "image/svg+xml") return ($("#plError").textContent = "Choose a JPG, PNG, WEBP or GIF image.");
-    plCoverFile = f;
-    setPreview($("#plCoverPreview"), f);
+    resizeImage(f, 800).then((img) => {
+        plCoverFile = img;
+        setPreview($("#plCoverPreview"), img);
+    });
 });
 
 $("#playlistForm").addEventListener("submit", async (e) => {
@@ -1878,16 +2000,16 @@ function renderAddSongs() {
     });
     $("#addSongsList").innerHTML = ids.length
         ? ids
-            .map((id) => {
-                const s = state.songs.get(id);
-                const added = addSongsPl.songs.includes(id);
-                return `<li><button type="button" class="pick-item ${added ? "is-added" : ""}" data-song-id="${id}" aria-pressed="${added}">
-                    <img class="thumb" src="${esc(coverOf(s))}" alt="" loading="lazy">
+              .map((id) => {
+                  const s = state.songs.get(id);
+                  const added = addSongsPl.songs.includes(id);
+                  return `<li><button type="button" class="pick-item ${added ? "is-added" : ""}" data-song-id="${id}" aria-pressed="${added}">
+                    <img class="thumb" src="${esc(coverOf(s))}" alt="" loading="lazy" decoding="async">
                     <span class="pick-item-text"><strong>${esc(s.title)}</strong><span>${esc(s.artist)}${s.isPrivate ? " · Private" : ""}</span></span>
                     <span class="pick-state"><i class="fa-solid ${added ? "fa-check" : "fa-plus"}"></i></span>
                 </button></li>`;
-            })
-            .join("")
+              })
+              .join("")
         : `<li class="pick-empty">No songs match “${esc(q)}”.</li>`;
 }
 
@@ -1933,9 +2055,10 @@ $("#avatarInput").addEventListener("change", async (e) => {
     e.target.value = "";
     if (!f) return;
     if (!/^image\/(png|jpeg|webp)$/.test(f.type)) return toast("Choose a JPG, PNG or WEBP image", { type: "error" });
-    if (f.size > 5 * 1024 * 1024) return toast("Please choose an image under 5 MB", { type: "error" });
+    const img = await resizeImage(f, 400);
+    if (img.size > 5 * 1024 * 1024) return toast("Please choose an image under 5 MB", { type: "error" });
     const fd = new FormData();
-    fd.append("avatar", f);
+    fd.append("avatar", img);
     toast("Updating photo…");
     try {
         const res = await api(`/users/${state.user.id}/avatar`, { method: "POST", body: fd });
@@ -2162,6 +2285,26 @@ document.addEventListener("keydown", (e) => {
     } else if (key === "?") openDialog($("#shortcutsDialog"));
 });
 
+// Opening the connection to the storage host early makes the first song start faster.
+function preconnectMedia() {
+    const first = state.songs.values().next().value;
+    if (!first?.src) return;
+    try {
+        const origin = new URL(first.src, location.href).origin;
+        if (origin === location.origin || $(`link[rel="preconnect"][href="${origin}"]`)) return;
+        const link = document.createElement("link");
+        link.rel = "preconnect";
+        link.href = origin;
+        link.crossOrigin = "anonymous";
+        document.head.appendChild(link);
+    } catch {}
+}
+
+// Offline app shell + "Install app" support (only on https or localhost).
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+
 /* Start-up */
 async function init() {
     const token = sessionGet("sohify_token");
@@ -2198,6 +2341,7 @@ async function init() {
         return;
     }
     onRoute();
+    preconnectMedia();
 
     // Restore the last song (paused) so the player isn't empty.
     if (settings.lastId && state.songs.has(settings.lastId)) {

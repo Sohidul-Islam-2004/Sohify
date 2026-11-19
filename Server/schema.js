@@ -81,6 +81,15 @@ const passwordResetSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+/* ------------------------------------------------------------
+   INDEXES — keep the hot queries fast as the catalog grows.
+   ------------------------------------------------------------ */
+songSchema.index({ isPrivate: 1, createdAt: -1 });   // public catalog, newest first
+songSchema.index({ uploadedBy: 1, createdAt: -1 });  // "My uploads"
+playlistSchema.index({ user: 1 });                   // a user's playlists
+playlistSchema.index({ songs: 1 });                  // clean-up when a song is deleted
+userSchema.index({ likedSongs: 1 });                 // clean-up when a song is deleted
+
 module.exports = {
     userSchema,
     songSchema,

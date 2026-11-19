@@ -1,126 +1,72 @@
-<div align="center">
+# Sohify
 
-# 🎵 SoundPulse · Sohify
+Music streaming web app — Express + MongoDB + Supabase Storage + Google SMTP.
 
-**A full-stack music streaming web app — auth, playlists, likes, custom uploads, and a slick audio player.**
+## Folder layout
 
-Built with Node.js · Express · MongoDB · Vanilla JS · IndexedDB
+```
+Server/   server.js · schema.js · mailer.js · .env (copy from .env.example)
+public/   index.html · style.css · script.js · favicon.svg
+          Login/ · Sign-Up/ · Dashboard/ · Terms/
+```
 
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)
-![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
-![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+No new npm packages are needed (express, mongoose, bcryptjs, cors, multer,
+@supabase/supabase-js, nodemailer, dotenv — same as before).
 
-[Features](#-features) • [Screenshots](#-screenshots) • [Tech Stack](#-tech-stack) • [Setup](#-getting-started) • [API](#-api-reference) • [Structure](#-project-structure) • [License](#-license)
+## Setup
 
-</div>
+1. `cp Server/.env.example Server/.env` and fill it in.
+   **Set `SESSION_SECRET`** — without it everyone is signed out whenever the server restarts.
+2. `node Server/server.js` → http://localhost:5000
 
----
+If `EMAIL_USER` / `EMAIL_PASS` are missing and `NODE_ENV` isn't `production`,
+codes are printed in the terminal so you can test without email.
 
-## 📖 About
+## Auth behaviour
 
-**SoundPulse (Sohify)** is a modern, full-stack music player that combines the seamless experience of a native music app with the power of the web. Users can sign up, log in, upload their own music with custom artwork, build playlists, like tracks, and enjoy a polished audio player with shuffle, repeat, seek, and queue controls.
+| Action | What happens |
+| --- | --- |
+| Sign in, **Remember me ticked** | Session in `localStorage`, valid 30 days; email pre-filled next time |
+| Sign in, **not ticked** | Session in `sessionStorage`; ends when the browser closes (max 24 h); saved email forgotten |
+| **Forgot password?** | Email → 6-digit code (15 min, 5 tries) → new password → "password changed" email; other devices signed out |
+| Change password (dashboard) | Needs current password; other devices signed out, this one stays in |
+| Wrong email *or* password | Same message ("Incorrect email or password") — no account probing |
+| 8 failed sign-ins / 15 min | Temporarily blocked for that IP + email |
 
-All **user data** (accounts, likes, playlists, avatar, recent history) is stored securely in **MongoDB**, while **uploaded audio blobs** live client-side in **IndexedDB** — giving fast playback without server storage costs.
+## API added / changed
 
----
+- `POST /api/users/forgot-password` `{ email }`
+- `POST /api/users/verify-reset-code` `{ email, code }` → `{ resetToken }`
+- `POST /api/users/reset-password` `{ email, resetToken, newPassword, confirmPassword }`
+- `GET  /api/users/me` (Bearer token)
+- `PATCH /api/songs/:id` (title, artist, album, cover) and `DELETE /api/songs/:id` — uploader or admin only
+- `POST /api/users/login` now takes `remember` and returns a real signed `token`
+- Every account / playlist / upload route now requires `Authorization: Bearer <token>`
+  and only lets you touch your own data. Client-sent `userId` is ignored.
 
-## ✨ Features
+## Performance setup (recommended)
 
-### 🔐 Authentication & Security
-- Email + password signup / login with **bcrypt** password hashing
-- **JWT-based sessions** (7-day expiry)
-- Per-user data isolation — every user sees only their own library
-- Protected routes via `Authorization: Bearer <token>` middleware
-- `isAdmin` flag ready for admin-only actions
+1. **Install compression** (gzip makes pages and API replies about 70% smaller):
+   `npm install compression` — the server picks it up automatically.
+2. **Supabase bucket settings** (Storage → your bucket → Edit):
+   - Public bucket: **on**
+   - File size limit: **50 MB**
+   - Allowed MIME types: `audio/*, image/*`
+   - `SUPABASE_KEY` must be the **service_role** key (needed to sign direct uploads). Never put it in front-end code.
+3. Keep `@supabase/supabase-js` on v2.x (any recent version has `createSignedUploadUrl`).
+   If it's missing, uploads automatically fall back to going through the server.
 
-### 🎧 Audio Player
-- Full-featured bottom player + mobile bottom-sheet
-- **Click / drag / wheel** seek and volume sliders
-- Play / Pause / Next / Previous
-- **Shuffle** and **Repeat (Off → All → One)** modes
-- **Animated equalizer** visualizer during playback
-- Enlarged album cover modal with embedded playback controls
-
-### 📂 Local Song Import
-- Upload `.mp3`, `.wav`, `.ogg`, `.m4a`, `.flac` via **file picker** or **drag & drop**
-- Attach **custom cover art** per track
-- Audio blob stored in **IndexedDB** → survives page refresh
-- Automatic duration detection + metadata synced to MongoDB
-
-### 📑 Playlists
-- Create, rename, and delete playlists
-- Add / remove any track (default, server, or local) with one click
-- Playlist **sequential playback** — starts at track 1 and auto-advances
-- Song counts displayed live in the sidebar
-
-### ❤️ Likes & Recents
-- One-tap heart toggle on any track, player, or mobile sheet
-- **Liked Songs** view filtered from your saved favorites
-- **Recent History** (last 20 tracks, persisted server-side)
-
-### 👤 Profile
-- Custom avatar upload (stored in MongoDB as data URL)
-- Display name shown in the header
-
-### 🎛️ Player Extras
-- **Play Queue** drawer — add tracks, reorder, play next
-- **Search** across title, artist, album
-- **Recommended cards** grid
-- **Keyboard shortcuts** for power users
-- Fully **responsive** (desktop sidebar ↔ mobile drawer)
-
----
-
-## ⌨️ Keyboard Shortcuts
-
-| Key | Action |
-| :-- | :-- |
-| `Space` | Play / Pause |
-| `→` | Skip forward 5s |
-| `←` | Rewind 5s |
-| `↑` | Volume +5% |
-| `↓` | Volume −5% |
-| `M` | Mute / Unmute |
-| `S` | Toggle Shuffle |
-| `R` | Cycle Repeat (Off → All → One) |
-| `Esc` | Close modals / minimize artwork |
-
----
-
-## 🧱 Tech Stack
-
-### Backend
-- **Node.js** + **Express** — HTTP server & routing
-- **MongoDB** + **Mongoose** — data persistence
-- **bcryptjs** — password hashing
-- **jsonwebtoken** — auth tokens
-- **dotenv** — environment config
-- **cors** — cross-origin support
-
-### Frontend
-- **Vanilla HTML5 / CSS3 / ES6+ JavaScript** — no framework overhead
-- **IndexedDB** — local audio blob storage
-- **Web Audio API** — playback control
-- **FontAwesome 6** — icons
-- **Google Fonts** (Inter, Space Grotesk) — typography
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js **18+**
-- MongoDB (local or [Atlas](https://www.mongodb.com/atlas) cluster)
-- A modern browser (Chrome, Firefox, Edge, Safari)
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/fazlerabbicodes/cse-347-ISAD-.git
-cd cse-347-ISAD-
+### What was optimised
+| Area | Before | Now |
+| --- | --- | --- |
+| Audio upload | Whole file held in server RAM, then re-sent | Browser uploads straight to Supabase with a one-time signed URL (server fallback kept) |
+| Media caching | Supabase default 1 hour | `Cache-Control` 1 year (file names are unique, never change) |
+| Cover / avatar images | Uploaded at full size (often 3–5 MB) | Resized in the browser to 800 px / 400 px WebP (~50–150 KB) |
+| Like, recent, playlist add/remove | Read whole user → modify → save (two quick taps could overwrite each other) | Single atomic MongoDB updates |
+| Every API request | Loaded the full user incl. all liked/recent ids | Loads only the fields needed |
+| Database | No indexes | Indexes for catalog, uploads, playlists and clean-up |
+| Long song lists | All rows rendered at once | First 100 rows instantly, more as you scroll |
+| Dashboard start | Songs, then library (one after the other) | Both requests in parallel |
+| Static files | No cache headers | ETag revalidation for HTML/CSS/JS, 7-day cache for images/fonts |
+| Offline / install | — | Service worker (offline app shell) + web app manifest ("Install Sohify") |
+| Start-up | Accepted traffic before MongoDB connected | Connects first; `/api/health` for uptime checks; graceful shutdown |
