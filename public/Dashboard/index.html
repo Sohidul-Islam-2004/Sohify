@@ -64,6 +64,7 @@
                 <p class="nav-label">Menu</p>
                 <ul class="nav-list">
                     <li class="nav-item active" id="navHome"><a href="#"><i class="fa-solid fa-house"></i> Home</a></li>
+                    <li class="nav-item" id="navAdmin" style="display: none;"><a href="#"><i class="fa-solid fa-shield-halved"></i> <span>Admin Hub</span></a></li>
                 </ul>
             </div>
 
@@ -111,6 +112,11 @@
                 <div class="header-right">
                     <button class="header-icon-btn" id="shortcutsBtn" title="Keyboard Shortcuts (?)">
                         <i class="fa-solid fa-keyboard"></i>
+                    </button>
+
+                    <button class="btn btn-glass btn-admin-header" id="headerAdminBtn" style="display: none;" title="Admin Hub (Stats & Songs)">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Admin Hub</span>
                     </button>
 
                     <button class="btn btn-glass btn-upload-header" id="headerUploadBtn" style="display: none;" title="Admin Cloud Upload">
@@ -163,6 +169,10 @@
                             </div>
 
                             <div class="user-card-footer">
+                                <button class="btn-card-action" id="cardAdminBtn" style="display: none;">
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                    <span>Admin Hub</span>
+                                </button>
                                 <button class="btn-card-action" id="cardChangePasswordBtn" style="display: none;">
                                     <i class="fa-solid fa-key"></i>
                                     <span>Change Password</span>
@@ -708,6 +718,8 @@
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" id="ctxDownloadTrack"><i class="fa-solid fa-download"></i> Download Audio File</div>
         <div class="context-menu-item" id="ctxCopyLink"><i class="fa-solid fa-link"></i> Copy Audio Link</div>
+        <div class="context-menu-divider ctx-admin-divider" id="ctxAdminDivider" style="display: none;"></div>
+        <div class="context-menu-item ctx-danger" id="ctxDeleteSong" style="display: none;"><i class="fa-solid fa-trash-can"></i> Delete Song (Admin)</div>
     </div>
 
     <!-- KEYBOARD SHORTCUTS MODAL -->
@@ -822,6 +834,178 @@
                 </button>
                 <button type="button" class="btn btn-green" id="confirmChangePasswordBtn">
                     <i class="fa-solid fa-key"></i> Update Password
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN HUB MODAL (PLATFORM STATS & SONG MANAGEMENT) -->
+    <div class="modal-overlay" id="adminHubModal">
+        <div class="modal-box modal-box-admin">
+            <div class="modal-header admin-modal-header">
+                <div class="admin-header-title-wrap">
+                    <div class="admin-shield-icon">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <h3>Sound Pulse Admin Hub</h3>
+                        <p class="admin-header-subtitle">Platform overview, statistics, and song catalog management</p>
+                    </div>
+                </div>
+                <div class="admin-header-actions">
+                    <button type="button" class="btn-admin-refresh" id="adminRefreshBtn" title="Refresh Platform Statistics">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Refresh</span>
+                    </button>
+                    <button type="button" class="modal-close-btn" id="closeAdminModalBtn" aria-label="Close Admin Hub">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-body admin-modal-body">
+                <!-- 1. STATS METRICS GRID -->
+                <div class="admin-stats-grid">
+                    <!-- TOTAL SONGS CARD -->
+                    <div class="admin-stat-card" id="adminCardSongs">
+                        <div class="admin-stat-icon icon-cyan">
+                            <i class="fa-solid fa-music"></i>
+                        </div>
+                        <div class="admin-stat-info">
+                            <span class="admin-stat-label">Total Songs</span>
+                            <div class="admin-stat-value-row">
+                                <span class="admin-stat-number" id="adminStatTotalSongs">0</span>
+                                <span class="admin-stat-pulse-dot" title="Live Database Synced"></span>
+                            </div>
+                            <div class="admin-stat-subpills">
+                                <span class="stat-subpill public" id="adminStatPublicSongs">0 Public Catalog</span>
+                                <span class="stat-subpill private" id="adminStatPrivateSongs">0 Private Vault</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TOTAL USERS CARD -->
+                    <div class="admin-stat-card" id="adminCardUsers">
+                        <div class="admin-stat-icon icon-magenta">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <div class="admin-stat-info">
+                            <span class="admin-stat-label">Total Users</span>
+                            <div class="admin-stat-value-row">
+                                <span class="admin-stat-number" id="adminStatTotalUsers">0</span>
+                                <span class="admin-stat-pulse-dot magenta" title="Live Database Synced"></span>
+                            </div>
+                            <div class="admin-stat-subpills">
+                                <span class="stat-subpill admin" id="adminStatAdminUsers">0 Admins</span>
+                                <span class="stat-subpill listener" id="adminStatRegularUsers">0 Listeners</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. ADMIN TABS (Songs Management & Users Overview) -->
+                <div class="admin-tabs-bar">
+                    <button type="button" class="admin-tab-btn active" id="adminTabSongs" data-target="adminSongsPane">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>Manage Songs</span>
+                        <span class="admin-tab-badge" id="adminTabSongsBadge">0</span>
+                    </button>
+                    <button type="button" class="admin-tab-btn" id="adminTabUsers" data-target="adminUsersPane">
+                        <i class="fa-solid fa-user-group"></i>
+                        <span>Users Overview</span>
+                        <span class="admin-tab-badge" id="adminTabUsersBadge">0</span>
+                    </button>
+                </div>
+
+                <!-- 3. TAB PANE: MANAGE SONGS -->
+                <div class="admin-tab-pane active" id="adminSongsPane">
+                    <div class="admin-toolbar">
+                        <div class="admin-search-wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="adminSongSearchInput" placeholder="Search songs by title, artist, album, uploader..." autocomplete="off">
+                            <button type="button" class="admin-search-clear" id="adminSongSearchClear" style="display: none;">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <div class="admin-filter-pills" id="adminSongFilterPills">
+                            <button type="button" class="admin-filter-pill active" data-filter="all">All (<span id="adminPillAllCount">0</span>)</button>
+                            <button type="button" class="admin-filter-pill" data-filter="public"><i class="fa-solid fa-globe"></i> Public (<span id="adminPillPublicCount">0</span>)</button>
+                            <button type="button" class="admin-filter-pill" data-filter="private"><i class="fa-solid fa-lock"></i> Private (<span id="adminPillPrivateCount">0</span>)</button>
+                        </div>
+                    </div>
+
+                    <!-- SONGS LIST TABLE -->
+                    <div class="admin-table-container">
+                        <div class="admin-table-header">
+                            <span class="col-cover">Cover</span>
+                            <span class="col-title">Title &amp; Artist</span>
+                            <span class="col-album">Album</span>
+                            <span class="col-duration"><i class="fa-regular fa-clock"></i></span>
+                            <span class="col-type">Visibility</span>
+                            <span class="col-uploader">Uploaded By</span>
+                            <span class="col-actions">Actions</span>
+                        </div>
+                        <div class="admin-song-list" id="adminSongList">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. TAB PANE: USERS OVERVIEW -->
+                <div class="admin-tab-pane" id="adminUsersPane" style="display: none;">
+                    <div class="admin-toolbar">
+                        <div class="admin-search-wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="adminUserSearchInput" placeholder="Search users by name, email, role..." autocomplete="off">
+                            <button type="button" class="admin-search-clear" id="adminUserSearchClear" style="display: none;" title="Clear search">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="admin-table-container">
+                        <div class="admin-table-header users-table-header">
+                            <span class="col-user-avatar">User</span>
+                            <span class="col-user-name">Full Name</span>
+                            <span class="col-user-email">Email Address</span>
+                            <span class="col-user-role">Role</span>
+                            <span class="col-user-status">Verified</span>
+                            <span class="col-user-joined">Joined</span>
+                        </div>
+                        <div class="admin-user-list" id="adminUserList">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DEDICATED DELETE SONG CONFIRMATION MODAL -->
+    <div class="modal-overlay" id="adminDeleteConfirmModal">
+        <div class="modal-box modal-box-danger">
+            <div class="modal-header">
+                <h3 class="danger-title"><i class="fa-solid fa-triangle-exclamation"></i> Delete Song</h3>
+                <button type="button" class="modal-close-btn" id="closeDeleteConfirmModalBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="delete-confirm-card">
+                    <img src="" id="deleteConfirmCover" class="delete-confirm-thumb" alt="Cover">
+                    <div class="delete-confirm-meta">
+                        <h4 id="deleteConfirmTitle">Song Title</h4>
+                        <p id="deleteConfirmArtist">Artist Name</p>
+                        <span class="delete-confirm-pill" id="deleteConfirmType">Public Catalog</span>
+                    </div>
+                </div>
+                <p class="delete-warning-text">
+                    Are you sure you want to permanently delete this song? This action <strong>cannot be undone</strong>. The song will be permanently removed from MongoDB, storage, and all user playlists.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-glass" id="cancelDeleteSongBtn">Cancel</button>
+                <button type="button" class="btn btn-danger-action" id="confirmDeleteSongBtn">
+                    <i class="fa-solid fa-trash-can"></i> Delete Permanently
                 </button>
             </div>
         </div>

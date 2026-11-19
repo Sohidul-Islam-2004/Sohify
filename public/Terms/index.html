@@ -482,8 +482,8 @@
         const sections = document.querySelectorAll(".clause-card");
 
         if (mobileToggle && navLinks) {
-          mobileToggle.addEventListener("click", () => {
-            const isOpen = navLinks.classList.toggle("open");
+          function setTermsNavOpen(isOpen) {
+            navLinks.classList.toggle("open", isOpen);
             mobileToggle.setAttribute("aria-expanded", String(isOpen));
             const icon = mobileToggle.querySelector("i");
             if (icon) {
@@ -491,15 +491,33 @@
                 ? "fa-solid fa-xmark"
                 : "fa-solid fa-bars";
             }
+          }
+
+          mobileToggle.addEventListener("click", (e) => {
+            e.stopPropagation();
+            setTermsNavOpen(!navLinks.classList.contains("open"));
           });
 
           navLinks.querySelectorAll("a").forEach((link) => {
-            link.addEventListener("click", () => {
-              navLinks.classList.remove("open");
-              mobileToggle.setAttribute("aria-expanded", "false");
-              const icon = mobileToggle.querySelector("i");
-              if (icon) icon.className = "fa-solid fa-bars";
-            });
+            link.addEventListener("click", () => setTermsNavOpen(false));
+          });
+
+          document.addEventListener("click", (e) => {
+            if (navLinks.classList.contains("open") && !navLinks.contains(e.target) && !mobileToggle.contains(e.target)) {
+              setTermsNavOpen(false);
+            }
+          });
+
+          document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && navLinks.classList.contains("open")) {
+              setTermsNavOpen(false);
+            }
+          });
+
+          window.addEventListener("resize", () => {
+            if (window.innerWidth >= 769 && navLinks.classList.contains("open")) {
+              setTermsNavOpen(false);
+            }
           });
         }
 

@@ -1,14 +1,19 @@
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const cors = require("cors");
 const multer = require("multer");
+const dns = require("dns");
+try {
+    dns.setServers(["2001:4860:4860::8888", "2001:4860:4860::8844", "8.8.8.8", "1.1.1.1"]);
+} catch {}
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config({ path: __dirname + "/.env" });
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 // Serve static files whether server.js is inside a subfolder or project root
@@ -16,12 +21,23 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(__dirname));
 
-const { userSchema, songSchema, playlistSchema, emailVerificationSchema } = require("./schema");
+const { userSchema, songSchema, playlistSchema, emailVerificationSchema, passwordResetSchema } = require("./schema");
 const User = mongoose.model("User", userSchema);
 const Song = mongoose.model("Song", songSchema);
 const Playlist = mongoose.model("Playlist", playlistSchema);
 const EmailVerification = mongoose.model("EmailVerification", emailVerificationSchema);
-const { sendVerificationEmail } = require("./mailer");
+const PasswordReset = mongoose.model("PasswordReset", passwordResetSchema);
+const { sendVerificationEmail, sendPasswordResetEmail } = require("./mailer");
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const SESSION_COOKIE_NAME = "sohify_session";
+const SESSION_SECRET =
+    process.env.SESSION_SECRET ||
+    crypto
+        .createHash("sha256")
+        .update(`sound-pulse-session:${process.env.DB_URL || ""}:${process.env.EMAIL_PASS || "dev-secret"}`)
+        .digest("hex");
 
 const PORT = process.env.PORT || 5000;
 const DB_URL = process.env.DB_URL;
@@ -89,6 +105,103 @@ async function getUserOr404(userId, res) {
     return user;
 }
 
+function passwordFingerprint(passwordHash) {
+    return crypto.createHash("sha256").update(String(passwordHash || "")).digest("hex").slice(0, 12);
+}
+
+function signSessionToken(user, rememberMe = false) {
+    const now = Date.now();
+    const ttl = rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS;
+    const expiresAt = now + ttl;
+    const payload = {
+        sub: String(user._id),
+        email: user.email,
+        rememberMe: Boolean(rememberMe),
+        pwv: passwordFingerprint(user.password),
+        iat: now,
+        exp: expiresAt
+    };
+    const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const sig = crypto.createHmac("sha256", SESSION_SECRET).update(encoded).digest("base64url");
+    return { token: `${encoded}.${sig}`, expiresAt };
+}
+
+function verifySessionToken(token) {
+    if (!token || typeof token !== "string" || !token.includes(".")) return null;
+    const parts = token.split(".");
+    if (parts.length !== 2) return null;
+    const [encoded, sig] = parts;
+    if (!encoded || !sig) return null;
+
+    const expectedSig = crypto.createHmac("sha256", SESSION_SECRET).update(encoded).digest("base64url");
+    const sigBuf = Buffer.from(sig);
+    const expectedBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+        if (!payload || !payload.sub || !payload.exp || Date.now() > Number(payload.exp)) {
+            return null;
+        }
+        return payload;
+    } catch {
+        return null;
+    }
+}
+
+function parseCookies(req) {
+    const header = req.headers.cookie;
+    const cookies = {};
+    if (!header) return cookies;
+    header.split(";").forEach((part) => {
+        const idx = part.indexOf("=");
+        if (idx === -1) return;
+        const key = part.slice(0, idx).trim();
+        const val = part.slice(idx + 1).trim();
+        try {
+            cookies[key] = decodeURIComponent(val);
+        } catch {
+            cookies[key] = val;
+        }
+    });
+    return cookies;
+}
+
+function getRequestToken(req) {
+    const authHeader = req.headers.authorization || "";
+    if (authHeader.startsWith("Bearer ")) {
+        return authHeader.slice(7).trim();
+    }
+    const cookies = parseCookies(req);
+    return cookies[SESSION_COOKIE_NAME] || "";
+}
+
+function setSessionCookie(res, req, token, rememberMe) {
+    const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
+    const opts = {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: Boolean(isHttps)
+    };
+    if (rememberMe) {
+        opts.maxAge = THIRTY_DAYS_MS;
+    }
+    res.cookie(SESSION_COOKIE_NAME, token, opts);
+}
+
+function clearSessionCookie(res, req) {
+    const isHttps = req?.secure || req?.headers?.["x-forwarded-proto"] === "https";
+    res.clearCookie(SESSION_COOKIE_NAME, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: Boolean(isHttps)
+    });
+}
+
 /* ============================================================
    AUTHENTICATION & EMAIL VERIFICATION (Google SMTP)
    ============================================================ */
@@ -140,7 +253,7 @@ app.post("/api/users/send-verification", async (req, res) => {
         }
 
         // Generate 6-digit verification code
-        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const code = String(crypto.randomInt(100000, 1000000));
         const hashedPassword = await bcrypt.hash(password, 10);
 
         await EmailVerification.findOneAndUpdate(
@@ -197,7 +310,7 @@ app.post("/api/users/resend-verification", async (req, res) => {
             });
         }
 
-        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const code = String(crypto.randomInt(100000, 1000000));
         pending.code = code;
         pending.attempts = 0;
         pending.createdAt = new Date();
@@ -221,7 +334,7 @@ app.post("/api/users/resend-verification", async (req, res) => {
 /**
  * Step 2: Confirm 6-digit code and create user in database
  */
-app.post("/api/users/verify-and-register", async (req, res) => {
+async function handleVerifyAndRegister(req, res) {
     try {
         const cleanEmail = String(req.body.email || "").toLowerCase().trim();
         const cleanCode = String(req.body.code || "").trim();
@@ -270,9 +383,15 @@ app.post("/api/users/verify-and-register", async (req, res) => {
 
         await EmailVerification.deleteOne({ _id: pending._id });
 
+        const { token, expiresAt } = signSessionToken(user, true);
+        setSessionCookie(res, req, token, true);
+
         res.status(201).json({
             success: true,
             message: "Email confirmed successfully! Your account is active.",
+            token,
+            rememberMe: true,
+            expiresAt,
             data: {
                 id: user._id,
                 name: user.name,
@@ -285,17 +404,17 @@ app.post("/api/users/verify-and-register", async (req, res) => {
         console.error("verify-and-register error:", err);
         res.status(500).json({ message: "Server error during registration." });
     }
-});
+}
+
+app.post("/api/users/verify-and-register", handleVerifyAndRegister);
 
 /**
  * Legacy/Standard registration router:
  * Requires code to finalize registration, ensuring email confirmation is strictly enforced.
  */
 app.post("/api/users/register", async (req, res) => {
-    if (req.body.code) {
-        // Forward to verify-and-register
-        req.url = "/api/users/verify-and-register";
-        return app._router.handle(req, res);
+    if (req.body?.code) {
+        return handleVerifyAndRegister(req, res);
     }
     return res.status(400).json({
         needsVerification: true,
@@ -305,28 +424,311 @@ app.post("/api/users/register", async (req, res) => {
 
 app.post("/api/users/login", async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, rememberMe } = req.body;
         if (!email || !password) return res.status(400).json({ message: "Email and password are required." });
 
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
-        if (!user) return res.status(404).json({ message: "User not found." });
+        const user = await User.findOne({ email: String(email).toLowerCase().trim() });
+        if (!user) return res.status(404).json({ field: "email", message: "User not found." });
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(401).json({ message: "Incorrect password." });
+        const isMatch = await bcrypt.compare(String(password), user.password);
+        if (!isMatch) return res.status(401).json({ field: "password", message: "Incorrect password." });
 
         if (user.isEmailVerified === false) {
             return res.status(403).json({
                 unverified: true,
+                field: "email",
                 message: "Please confirm your email address before logging in."
             });
         }
 
+        const remember = rememberMe === true || rememberMe === "true";
+        const { token, expiresAt } = signSessionToken(user, remember);
+        setSessionCookie(res, req, token, remember);
+
         res.json({
             success: true,
-            data: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, avatarUrl: user.avatarUrl || "" }
+            token,
+            rememberMe: remember,
+            expiresAt,
+            data: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                isAdmin: user.isAdmin,
+                avatarUrl: user.avatarUrl || ""
+            }
         });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
+    }
+});
+
+app.get("/api/users/session", async (req, res) => {
+    try {
+        const token = getRequestToken(req);
+        const payload = verifySessionToken(token);
+        if (!payload || !isId(payload.sub)) {
+            return res.status(401).json({ authenticated: false, message: "No active session." });
+        }
+
+        const user = await User.findById(payload.sub);
+        if (!user || user.isEmailVerified === false) {
+            clearSessionCookie(res, req);
+            return res.status(401).json({ authenticated: false, message: "Session is no longer valid." });
+        }
+
+        if (payload.pwv && payload.pwv !== passwordFingerprint(user.password)) {
+            clearSessionCookie(res, req);
+            return res.status(401).json({ authenticated: false, message: "Session expired after password update." });
+        }
+
+        res.json({
+            authenticated: true,
+            rememberMe: Boolean(payload.rememberMe),
+            expiresAt: Number(payload.exp),
+            data: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                isAdmin: user.isAdmin,
+                avatarUrl: user.avatarUrl || ""
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ authenticated: false, message: "Failed to verify session." });
+    }
+});
+
+app.post("/api/users/logout", (req, res) => {
+    clearSessionCookie(res, req);
+    res.json({ success: true, message: "Logged out successfully." });
+});
+
+/* ============================================================
+   FORGOT PASSWORD (Dedicated Reset SMTP OTP Flow)
+   ============================================================ */
+
+/**
+ * Step 1: Request 6-digit password reset code via dedicated RESET_EMAIL_USER SMTP (or primary fallback).
+ */
+app.post("/api/users/forgot-password/send-code", async (req, res) => {
+    try {
+        const cleanEmail = String(req.body?.email || "").toLowerCase().trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+            return res.status(400).json({ field: "email", message: "Please enter a valid account email address." });
+        }
+
+        const user = await User.findOne({ email: cleanEmail });
+        if (!user) {
+            return res.status(404).json({ field: "email", message: "No Sound Pulse account found with this email address." });
+        }
+
+        const pending = await PasswordReset.findOne({ email: cleanEmail });
+        const lastSentMs = pending?.lastSentAt ? new Date(pending.lastSentAt).getTime() : 0;
+        if (pending && lastSentMs && Date.now() - lastSentMs < 45000) {
+            const waitSecs = Math.ceil((45000 - (Date.now() - lastSentMs)) / 1000);
+            return res.status(429).json({
+                message: `Please wait ${waitSecs} seconds before requesting another reset code.`
+            });
+        }
+
+        const code = String(crypto.randomInt(100000, 1000000));
+        await PasswordReset.findOneAndUpdate(
+            { email: cleanEmail },
+            {
+                email: cleanEmail,
+                code,
+                attempts: 0,
+                verified: false,
+                resetToken: "",
+                lastSentAt: new Date(),
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+        );
+
+        const mailResult = await sendPasswordResetEmail(cleanEmail, user.name, code);
+
+        res.json({
+            success: true,
+            email: cleanEmail,
+            simulated: Boolean(mailResult.simulated),
+            senderMode: mailResult.senderMode || "fallback",
+            message: `A 6-digit password reset code was sent to ${cleanEmail}.`
+        });
+    } catch (err) {
+        console.error("forgot-password send-code error:", err);
+        res.status(500).json({ message: err.message || "Failed to send password reset email." });
+    }
+});
+
+/**
+ * Resend 6-digit password reset code with 45s cooldown.
+ */
+app.post("/api/users/forgot-password/resend-code", async (req, res) => {
+    try {
+        const cleanEmail = String(req.body?.email || "").toLowerCase().trim();
+        if (!cleanEmail) {
+            return res.status(400).json({ message: "Email address is required." });
+        }
+
+        const user = await User.findOne({ email: cleanEmail });
+        if (!user) {
+            return res.status(404).json({ message: "No Sound Pulse account found with this email address." });
+        }
+
+        const pending = await PasswordReset.findOne({ email: cleanEmail });
+        if (!pending) {
+            return res.status(404).json({
+                message: "Reset session expired or not found. Please enter your email again."
+            });
+        }
+
+        const lastSentMs = pending.lastSentAt ? new Date(pending.lastSentAt).getTime() : 0;
+        if (lastSentMs && Date.now() - lastSentMs < 45000) {
+            const waitSecs = Math.ceil((45000 - (Date.now() - lastSentMs)) / 1000);
+            return res.status(429).json({
+                message: `Please wait ${waitSecs} seconds before requesting another reset code.`
+            });
+        }
+
+        const code = String(crypto.randomInt(100000, 1000000));
+        pending.code = code;
+        pending.attempts = 0;
+        pending.verified = false;
+        pending.resetToken = "";
+        pending.lastSentAt = new Date();
+        pending.createdAt = new Date();
+        await pending.save();
+
+        const mailResult = await sendPasswordResetEmail(cleanEmail, user.name, code);
+
+        res.json({
+            success: true,
+            email: cleanEmail,
+            simulated: Boolean(mailResult.simulated),
+            senderMode: mailResult.senderMode || "fallback",
+            message: `A fresh 6-digit password reset code was sent to ${cleanEmail}.`
+        });
+    } catch (err) {
+        console.error("forgot-password resend-code error:", err);
+        res.status(500).json({ message: err.message || "Failed to resend reset code." });
+    }
+});
+
+/**
+ * Step 2: Verify the 6-digit reset OTP code and issue a short-lived resetToken.
+ */
+app.post("/api/users/forgot-password/verify-code", async (req, res) => {
+    try {
+        const cleanEmail = String(req.body?.email || "").toLowerCase().trim();
+        const cleanCode = String(req.body?.code || "").replace(/\D/g, "").slice(0, 6);
+
+        if (!cleanEmail || cleanCode.length !== 6) {
+            return res.status(400).json({ message: "Please enter the full 6-digit reset code." });
+        }
+
+        const pending = await PasswordReset.findOne({ email: cleanEmail });
+        if (!pending) {
+            return res.status(400).json({
+                message: "Reset code has expired or does not exist. Please request a new code."
+            });
+        }
+
+        if (pending.attempts >= 5) {
+            await PasswordReset.deleteOne({ _id: pending._id });
+            return res.status(429).json({
+                message: "Too many failed attempts. Please request a fresh password reset code."
+            });
+        }
+
+        if (pending.code !== cleanCode) {
+            pending.attempts += 1;
+            await pending.save();
+            const remaining = 5 - pending.attempts;
+            if (remaining <= 0) {
+                await PasswordReset.deleteOne({ _id: pending._id });
+                return res.status(429).json({
+                    message: "Too many failed attempts. Please request a fresh password reset code."
+                });
+            }
+            return res.status(400).json({
+                message: `Invalid reset code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+            });
+        }
+
+        const resetToken = crypto.randomBytes(24).toString("hex");
+        pending.verified = true;
+        pending.resetToken = resetToken;
+        await pending.save();
+
+        res.json({
+            success: true,
+            email: cleanEmail,
+            resetToken,
+            message: "Reset code confirmed! Enter your new password."
+        });
+    } catch (err) {
+        console.error("forgot-password verify-code error:", err);
+        res.status(500).json({ message: "Server error verifying reset code." });
+    }
+});
+
+/**
+ * Step 3: Set a new password after OTP verification.
+ */
+app.post("/api/users/forgot-password/reset", async (req, res) => {
+    try {
+        const cleanEmail = String(req.body?.email || "").toLowerCase().trim();
+        const resetToken = String(req.body?.resetToken || "").trim();
+        const newPassword = String(req.body?.newPassword || "");
+        const confirmPassword = req.body?.confirmPassword;
+
+        if (!cleanEmail || !resetToken) {
+            return res.status(400).json({ message: "Reset session missing or expired. Please request a new reset code." });
+        }
+
+        const pending = await PasswordReset.findOne({ email: cleanEmail });
+        if (!pending || !pending.verified || !pending.resetToken) {
+            return res.status(400).json({ message: "Reset session expired or not verified. Please request a new code." });
+        }
+
+        const storedBuf = Buffer.from(pending.resetToken);
+        const givenBuf = Buffer.from(resetToken);
+        if (storedBuf.length !== givenBuf.length || !crypto.timingSafeEqual(storedBuf, givenBuf)) {
+            return res.status(403).json({ message: "Invalid password reset authorization token." });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({ field: "newPassword", message: "New password must be at least 8 characters." });
+        }
+        if (confirmPassword !== undefined && newPassword !== String(confirmPassword)) {
+            return res.status(400).json({ field: "confirmPassword", message: "Passwords do not match." });
+        }
+
+        const user = await User.findOne({ email: cleanEmail });
+        if (!user) {
+            await PasswordReset.deleteOne({ _id: pending._id });
+            return res.status(404).json({ message: "User account not found." });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.isEmailVerified = true;
+        await user.save();
+
+        await PasswordReset.deleteOne({ _id: pending._id });
+        clearSessionCookie(res, req);
+
+        res.json({
+            success: true,
+            email: cleanEmail,
+            message: "Password reset successfully! You can now sign in with your new password."
+        });
+    } catch (err) {
+        console.error("forgot-password reset error:", err);
+        res.status(500).json({ message: "Server error while resetting password." });
     }
 });
 
@@ -400,7 +802,21 @@ app.post("/api/users/:userId/change-password", async (req, res) => {
         user.password = await bcrypt.hash(newPassStr, 10);
         await user.save();
 
-        res.json({ success: true, message: "Password updated successfully!" });
+        // Keep the active browser logged in cleanly with a refreshed signature after password change
+        const activeToken = getRequestToken(req);
+        const activePayload = verifySessionToken(activeToken);
+        const isSameSession = Boolean(activePayload && activePayload.sub === String(user._id));
+        const keepRemembered = isSameSession ? Boolean(activePayload.rememberMe) : false;
+        const { token: freshToken, expiresAt: freshExpiresAt } = signSessionToken(user, keepRemembered);
+        if (isSameSession) {
+            setSessionCookie(res, req, freshToken, keepRemembered);
+        }
+
+        res.json({
+            success: true,
+            message: "Password updated successfully!",
+            ...(isSameSession ? { token: freshToken, rememberMe: keepRemembered, expiresAt: freshExpiresAt } : {})
+        });
     } catch (err) {
         console.error("change-password error:", err);
         res.status(500).json({ message: "Server error while updating password." });
@@ -466,6 +882,212 @@ app.post(
         }
     }
 );
+
+app.delete("/api/songs/:songId", async (req, res) => {
+    try {
+        const { songId } = req.params;
+        if (!isId(songId)) {
+            return res.status(400).json({ message: "Invalid song id." });
+        }
+
+        const song = await Song.findById(songId);
+        if (!song) {
+            return res.status(404).json({ message: "Song not found or already deleted." });
+        }
+
+        // Authenticate caller (Admin or Uploader)
+        const token = getRequestToken(req);
+        const payload = verifySessionToken(token);
+        let callerUser = null;
+        if (payload && isId(payload.sub)) {
+            callerUser = await User.findById(payload.sub);
+        }
+        if (!callerUser && isId(req.query.userId || req.body?.userId)) {
+            callerUser = await User.findById(req.query.userId || req.body.userId);
+        }
+
+        if (!callerUser) {
+            return res.status(401).json({ message: "Authentication required to delete a song." });
+        }
+
+        // Admins cannot delete private vault songs under any circumstances
+        if (song.isPrivate) {
+            return res.status(403).json({ message: "Admin cannot delete private songs. Private vault songs are protected." });
+        }
+
+        if (!callerUser.isAdmin) {
+            return res.status(403).json({ message: "Only administrators can delete public catalog songs." });
+        }
+
+        // 1. Delete from MongoDB
+        await song.deleteOne();
+
+        // 2. Clean up references in User library & Playlists
+        await Promise.all([
+            User.updateMany(
+                { $or: [{ likedSongs: songId }, { recentSongs: songId }, { localSong: songId }] },
+                { $pull: { likedSongs: songId, recentSongs: songId, localSong: songId } }
+            ),
+            Playlist.updateMany(
+                { songs: songId },
+                { $pull: { songs: songId } }
+            )
+        ]);
+
+        // 3. Best-effort Supabase storage removal
+        async function deleteSupabaseStorageFile(fileUrl) {
+            if (!fileUrl || typeof fileUrl !== "string") return;
+            try {
+                const marker = `/${SUPABASE_BUCKET}/`;
+                const idx = fileUrl.indexOf(marker);
+                if (idx !== -1) {
+                    const storagePath = decodeURIComponent(fileUrl.slice(idx + marker.length));
+                    if (storagePath) {
+                        await supabase.storage.from(SUPABASE_BUCKET).remove([storagePath]);
+                    }
+                }
+            } catch (storageErr) {
+                console.warn("Could not remove file from Supabase storage:", storageErr.message);
+            }
+        }
+
+        await deleteSupabaseStorageFile(song.audioUrl);
+        await deleteSupabaseStorageFile(song.coverUrl);
+
+        res.json({
+            success: true,
+            deletedId: songId,
+            message: `"${song.title}" was permanently deleted.`
+        });
+    } catch (err) {
+        console.error("delete-song error:", err);
+        res.status(500).json({ message: err.message || "Failed to delete song." });
+    }
+});
+
+/* ============================================================
+   ADMIN DASHBOARD & PLATFORM MANAGEMENT
+   ============================================================ */
+
+async function getAdminUserOr403(req, res) {
+    const token = getRequestToken(req);
+    const payload = verifySessionToken(token);
+    let user = null;
+    if (payload && isId(payload.sub)) {
+        user = await User.findById(payload.sub);
+    }
+    if (!user && isId(req.query.userId || req.body?.userId)) {
+        user = await User.findById(req.query.userId || req.body.userId);
+    }
+    if (!user) {
+        res.status(401).json({ message: "Authentication required." });
+        return null;
+    }
+    if (!user.isAdmin) {
+        res.status(403).json({ message: "Access restricted to administrators." });
+        return null;
+    }
+    return user;
+}
+
+app.get("/api/admin/stats", async (req, res) => {
+    try {
+        const admin = await getAdminUserOr403(req, res);
+        if (!admin) return;
+
+        const [totalSongs, publicSongs, privateSongs, totalUsers, adminUsers, regularUsers] = await Promise.all([
+            Song.countDocuments(),
+            Song.countDocuments({ isPrivate: { $ne: true } }),
+            Song.countDocuments({ isPrivate: true }),
+            User.countDocuments(),
+            User.countDocuments({ isAdmin: true }),
+            User.countDocuments({ isAdmin: { $ne: true } })
+        ]);
+
+        res.json({
+            success: true,
+            stats: {
+                totalSongs,
+                publicSongs,
+                privateSongs,
+                totalUsers,
+                adminUsers,
+                regularUsers
+            }
+        });
+    } catch (err) {
+        console.error("admin-stats error:", err);
+        res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+});
+
+app.get("/api/admin/songs", async (req, res) => {
+    try {
+        const admin = await getAdminUserOr403(req, res);
+        if (!admin) return;
+
+        const songs = await Song.find()
+            .populate("uploadedBy", "name email isAdmin")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.json({
+            success: true,
+            count: songs.length,
+            songs: songs.map((s) => ({
+                id: String(s._id),
+                title: s.title,
+                artist: s.artist,
+                album: s.album || "Sound Pulse",
+                duration: s.duration || "--:--",
+                audioUrl: s.audioUrl,
+                coverUrl: s.coverUrl,
+                isPrivate: Boolean(s.isPrivate),
+                createdAt: s.createdAt,
+                uploadedBy: s.uploadedBy
+                    ? {
+                          id: String(s.uploadedBy._id),
+                          name: s.uploadedBy.name,
+                          email: s.uploadedBy.email,
+                          isAdmin: Boolean(s.uploadedBy.isAdmin)
+                      }
+                    : null
+            }))
+        });
+    } catch (err) {
+        console.error("admin-songs error:", err);
+        res.status(500).json({ message: "Failed to fetch songs list" });
+    }
+});
+
+app.get("/api/admin/users", async (req, res) => {
+    try {
+        const admin = await getAdminUserOr403(req, res);
+        if (!admin) return;
+
+        const users = await User.find()
+            .select("name email isAdmin isEmailVerified avatarUrl createdAt")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.json({
+            success: true,
+            count: users.length,
+            users: users.map((u) => ({
+                id: String(u._id),
+                name: u.name,
+                email: u.email,
+                isAdmin: Boolean(u.isAdmin),
+                isEmailVerified: Boolean(u.isEmailVerified),
+                avatarUrl: u.avatarUrl || "",
+                createdAt: u.createdAt
+            }))
+        });
+    } catch (err) {
+        console.error("admin-users error:", err);
+        res.status(500).json({ message: "Failed to fetch users list" });
+    }
+});
 
 /* ============================================================
    USER DATA & PLAYLISTS

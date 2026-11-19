@@ -142,6 +142,15 @@ function clearErrors() {
     if (verifyError) verifyError.textContent = "";
 }
 
+function escapeHtml(str) {
+    return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function showFieldError(field, message) {
     const map = {
         fullName: nameError,
@@ -154,8 +163,8 @@ function showFieldError(field, message) {
     };
     if (map[field]) {
         map[field].textContent = message;
-    } else {
-        alert(message);
+    } else if (emailError) {
+        emailError.textContent = message;
     }
 }
 
@@ -276,13 +285,13 @@ signupForm.addEventListener("submit", async (e) => {
         showStep("verify");
 
         if (data.simulated) {
-            showAlert("💡 <strong>Dev Notice:</strong> Google SMTP credentials not set in Server/.env. The 6-digit confirmation code was logged to your terminal console.", "info");
+            showAlert("<strong>Dev Notice:</strong> SMTP is in preview mode. The 6-digit confirmation code was logged to the server console.", "info");
         } else {
-            showAlert(`A 6-digit confirmation code was sent to <strong>${email}</strong> via Google SMTP. Check your inbox and spam folder.`, "success");
+            showAlert(`A 6-digit confirmation code was sent to <strong>${escapeHtml(email)}</strong>. Check your inbox and spam folder.`, "success");
         }
     } catch (err) {
         console.error("Signup request error:", err);
-        alert("Network error. Please verify your connection and server status.");
+        if (emailError) emailError.textContent = "Network error. Please verify your connection and try again.";
     } finally {
         signupSubmitBtn.disabled = false;
         signupSubmitBtn.innerHTML = originalText;
@@ -410,13 +419,17 @@ verifyForm.addEventListener("submit", async (e) => {
         const username = user.name || user.email.split("@")[0];
         const token = data.token || "session_token_" + Date.now();
         const isAdminStr = String(Boolean(user.isAdmin));
+        const expiresAt = Number(data.expiresAt) || (Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-        // Store session tokens for seamless immediate login
+        // Store 30-day signed session tokens for seamless immediate login
         localStorage.setItem("sohify_token", token);
         localStorage.setItem("sohify_user", user.email);
         localStorage.setItem("sohify_username", username);
         localStorage.setItem("sohify_user_id", user.id);
         localStorage.setItem("sohify_is_admin", isAdminStr);
+        localStorage.setItem("sohify_remember_me", "true");
+        localStorage.setItem("sohify_remember_email", user.email);
+        localStorage.setItem("sohify_remember_expires_at", String(expiresAt));
 
         sessionStorage.setItem("sohify_token", token);
         sessionStorage.setItem("sohify_user", user.email);
@@ -460,7 +473,7 @@ resendCodeBtn.addEventListener("click", async () => {
         const data = await res.json();
 
         if (!res.ok) {
-            showAlert(data.message || "Failed to resend code. Please try again later.", "error");
+            showAlert(escapeHtml(data.message || "Failed to resend code. Please try again later."), "error");
             startResendCountdown(10);
             return;
         }
@@ -473,9 +486,9 @@ resendCodeBtn.addEventListener("click", async () => {
         otpDigits[0]?.focus();
 
         if (data.simulated) {
-            showAlert("💡 <strong>Dev Notice:</strong> New 6-digit confirmation code was logged to your terminal console.", "info");
+            showAlert("<strong>Dev Notice:</strong> New 6-digit confirmation code was logged to the server console.", "info");
         } else {
-            showAlert(`A fresh 6-digit confirmation code was sent to <strong>${currentEmail}</strong>.`, "success");
+            showAlert(`A fresh 6-digit confirmation code was sent to <strong>${escapeHtml(currentEmail)}</strong>.`, "success");
         }
 
         startResendCountdown(45);

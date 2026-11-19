@@ -7,7 +7,10 @@ const API_BASE_URL = "/api";
 // 2. API HELPERS
 // ==========================================================================
 async function api(path, options = {}) {
-    const res = await fetch(`${API_BASE_URL}${path}`, options);
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        credentials: "same-origin",
+        ...options
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
         const err = new Error(data.message || `Request failed (${res.status})`);
@@ -31,6 +34,33 @@ function escapeHtml(str) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            // Fall through to legacy execCommand copy on fallback
+        }
+    }
+    try {
+        const helper = document.createElement("textarea");
+        helper.value = text;
+        helper.setAttribute("readonly", "");
+        helper.style.position = "fixed";
+        helper.style.top = "-9999px";
+        helper.style.left = "-9999px";
+        document.body.appendChild(helper);
+        helper.select();
+        helper.setSelectionRange(0, helper.value.length);
+        const copied = document.execCommand("copy");
+        document.body.removeChild(helper);
+        return copied;
+    } catch {
+        return false;
+    }
 }
 
 // ==========================================================================
@@ -68,41 +98,134 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cardLogoutBtn = document.getElementById("cardLogoutBtn");
     const userAvatarInput = document.getElementById("userAvatarInput");
     const headerUploadBtn = document.getElementById("headerUploadBtn");
+    const headerAdminBtn = document.getElementById("headerAdminBtn");
+    const navAdmin = document.getElementById("navAdmin");
+    const cardAdminBtn = document.getElementById("cardAdminBtn");
 
-    const currentUserEmail = localStorage.getItem("sohify_user") || sessionStorage.getItem("sohify_user");
-    const currentUserName = localStorage.getItem("sohify_username") || sessionStorage.getItem("sohify_username");
-    const currentUserId = localStorage.getItem("sohify_user_id") || sessionStorage.getItem("sohify_user_id") || "guest";
-    const isAdmin = (localStorage.getItem("sohify_is_admin") === "true") || (sessionStorage.getItem("sohify_is_admin") === "true");
+    function clearPersistentAuthStorage() {
+        localStorage.removeItem("sohify_user");
+        localStorage.removeItem("sohify_username");
+        localStorage.removeItem("sohify_user_id");
+        localStorage.removeItem("sohify_is_admin");
+        localStorage.removeItem("sohify_token");
+        localStorage.removeItem("sohify_remember_me");
+        localStorage.removeItem("sohify_remember_expires_at");
+        localStorage.removeItem("sohify_remember_email");
+    }
+
+    function purgeExpiredRememberedSession() {
+        const expiresRaw = localStorage.getItem("sohify_remember_expires_at");
+        if (!expiresRaw) return false;
+        const expiresAt = Number(expiresRaw);
+        if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {
+            clearPersistentAuthStorage();
+            return true;
+        }
+        return false;
+    }
+
+    purgeExpiredRememberedSession();
+
+    let currentUserEmail = sessionStorage.getItem("sohify_user") || localStorage.getItem("sohify_user") || "";
+    let currentUserName = sessionStorage.getItem("sohify_username") || localStorage.getItem("sohify_username") || "";
+    let currentUserId = sessionStorage.getItem("sohify_user_id") || localStorage.getItem("sohify_user_id") || "guest";
+    let isAdmin = (sessionStorage.getItem("sohify_is_admin") || localStorage.getItem("sohify_is_admin")) === "true";
 
     const isLoggedIn = () => !!currentUserId && currentUserId !== "guest" && !!currentUserEmail;
-
-    if (isLoggedIn() && isAdmin) {
-        if (headerUploadBtn) headerUploadBtn.style.display = "inline-flex";
-    } else {
-        if (headerUploadBtn) headerUploadBtn.style.display = "none";
-    }
 
     const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop";
     let userAvatarUrl = DEFAULT_AVATAR;
 
-    if (isLoggedIn()) {
-        if (displayUserName) displayUserName.textContent = currentUserName || "Listener";
-        if (cardUserName) cardUserName.textContent = currentUserName || "Listener";
-        if (cardUserEmail) cardUserEmail.textContent = currentUserEmail;
-        if (cardUserRole) {
-            cardUserRole.textContent = isAdmin ? "Admin" : "Regular Listener";
-            cardUserRole.className = `role-badge ${isAdmin ? "admin" : "listener"}`;
+    function syncAuthenticatedProfileUi() {
+        document.body.classList.toggle("is-guest", !isLoggedIn());
+        const isUserAdmin = isLoggedIn() && isAdmin;
+        if (headerUploadBtn) headerUploadBtn.style.display = isUserAdmin ? "inline-flex" : "none";
+        if (headerAdminBtn) headerAdminBtn.style.display = isUserAdmin ? "inline-flex" : "none";
+        if (navAdmin) navAdmin.style.display = isUserAdmin ? "block" : "none";
+        if (cardAdminBtn) cardAdminBtn.style.display = isUserAdmin ? "flex" : "none";
+
+        if (isLoggedIn()) {
+            if (displayUserName) displayUserName.textContent = currentUserName || "Listener";
+            if (cardUserName) cardUserName.textContent = currentUserName || "Listener";
+            if (cardUserEmail) cardUserEmail.textContent = currentUserEmail;
+            if (cardUserRole) {
+                cardUserRole.textContent = isAdmin ? "Admin" : "Regular Listener";
+                cardUserRole.className = `role-badge ${isAdmin ? "admin" : "listener"}`;
+            }
+            if (authBtn) authBtn.style.display = "none";
+            if (cardChangePasswordBtn) cardChangePasswordBtn.style.display = "flex";
+            if (cardLogoutBtn) cardLogoutBtn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> <span>Log Out</span>`;
+        } else {
+            if (displayUserName) displayUserName.textContent = "Guest Listener";
+            if (cardUserName) cardUserName.textContent = "Guest Listener";
+            if (cardUserEmail) cardUserEmail.textContent = "Not signed in";
+            if (cardUserRole) {
+                cardUserRole.textContent = "Guest";
+                cardUserRole.className = "role-badge";
+            }
+            if (authBtn) authBtn.style.display = "inline-flex";
+            if (cardChangePasswordBtn) cardChangePasswordBtn.style.display = "none";
+            if (cardLogoutBtn) cardLogoutBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> <span>Log In</span>`;
         }
-        if (authBtn) authBtn.style.display = "none";
-        if (cardChangePasswordBtn) cardChangePasswordBtn.style.display = "flex";
-    } else {
-        if (displayUserName) displayUserName.textContent = "Guest Listener";
-        if (cardUserName) cardUserName.textContent = "Guest Listener";
-        if (cardUserEmail) cardUserEmail.textContent = "Not signed in";
-        if (cardUserRole) cardUserRole.textContent = "Guest";
-        if (cardChangePasswordBtn) cardChangePasswordBtn.style.display = "none";
-        if (cardLogoutBtn) cardLogoutBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> <span>Log In</span>`;
     }
+
+    async function verifyAndSyncSession() {
+        const storedToken = sessionStorage.getItem("sohify_token") || localStorage.getItem("sohify_token") || "";
+        const hadRemembered = localStorage.getItem("sohify_remember_me") === "true";
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/users/session`, {
+                credentials: "same-origin",
+                headers: storedToken && storedToken.includes(".") ? { Authorization: `Bearer ${storedToken}` } : {}
+            });
+
+            if (res.ok) {
+                const payload = await res.json();
+                if (payload.authenticated && payload.data) {
+                    const u = payload.data;
+                    const uname = u.name || u.email.split("@")[0];
+                    currentUserEmail = u.email;
+                    currentUserName = uname;
+                    currentUserId = u.id;
+                    isAdmin = Boolean(u.isAdmin);
+                    if (u.avatarUrl) userAvatarUrl = u.avatarUrl;
+
+                    sessionStorage.setItem("sohify_user", u.email);
+                    sessionStorage.setItem("sohify_username", uname);
+                    sessionStorage.setItem("sohify_user_id", u.id);
+                    sessionStorage.setItem("sohify_is_admin", String(isAdmin));
+
+                    if (payload.rememberMe) {
+                        localStorage.setItem("sohify_user", u.email);
+                        localStorage.setItem("sohify_username", uname);
+                        localStorage.setItem("sohify_user_id", u.id);
+                        localStorage.setItem("sohify_is_admin", String(isAdmin));
+                        localStorage.setItem("sohify_remember_me", "true");
+                        localStorage.setItem("sohify_remember_email", u.email);
+                        if (payload.expiresAt) {
+                            localStorage.setItem("sohify_remember_expires_at", String(payload.expiresAt));
+                        }
+                    }
+                }
+            } else if (res.status === 401 && (hadRemembered || (storedToken && storedToken.includes(".")))) {
+                // Expired 30-day session or invalidated after password reset -> sign out cleanly
+                clearPersistentAuthStorage();
+                sessionStorage.clear();
+                currentUserEmail = "";
+                currentUserName = "";
+                currentUserId = "guest";
+                isAdmin = false;
+                showToast("Session expired. Please sign in again.", "fa-clock");
+            }
+        } catch {
+            // Network offline or transient error: keep current client session gracefully
+        }
+
+        syncAuthenticatedProfileUi();
+    }
+
+    syncAuthenticatedProfileUi();
+    await verifyAndSyncSession();
 
     if (userAvatar) userAvatar.src = userAvatarUrl;
     if (cardAvatarImg) cardAvatarImg.src = userAvatarUrl;
@@ -140,28 +263,31 @@ document.addEventListener("DOMContentLoaded", async () => {
             userAvatarUrl = data.avatarUrl;
             if (userAvatar) userAvatar.src = userAvatarUrl;
             if (cardAvatarImg) cardAvatarImg.src = userAvatarUrl;
+            const currentPl = playlists.find(p => p.id === state.activePlaylistId);
             const plCreatorAvatar = document.getElementById("plCreatorAvatar");
-            if (plCreatorAvatar) plCreatorAvatar.src = userAvatarUrl;
+            if (plCreatorAvatar && currentPl && currentPl.isOwned !== false) {
+                plCreatorAvatar.src = userAvatarUrl;
+            }
             showToast("Profile picture updated!", "fa-camera");
         } catch (err) {
             showToast(err.message || "Avatar upload failed", "fa-triangle-exclamation");
         }
     });
 
-    cardLogoutBtn?.addEventListener("click", () => {
+    cardLogoutBtn?.addEventListener("click", async () => {
         if (!isLoggedIn()) {
             window.location.href = "/Login";
             return;
         }
-        localStorage.removeItem("sohify_user");
-        localStorage.removeItem("sohify_username");
-        localStorage.removeItem("sohify_user_id");
-        localStorage.removeItem("sohify_is_admin");
-        localStorage.removeItem("sohify_token");
-
+        try {
+            await fetch(`${API_BASE_URL}/users/logout`, { method: "POST", credentials: "same-origin" });
+        } catch {
+            // Proceed with local sign-out even if request fails
+        }
+        clearPersistentAuthStorage();
         sessionStorage.clear();
         showToast("Logged out successfully");
-        setTimeout(() => { window.location.href = "/Login"; }, 500);
+        setTimeout(() => { window.location.href = "/Login"; }, 450);
     });
 
     // --- B2. Change Password Modal (Requires Old Password Confirmation) ----
@@ -287,6 +413,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function openChangePasswordModal() {
         if (!requireLogin("Please log in to change your password")) return;
+        closeDrawer();
         userInfoCard?.classList.remove("open");
         userProfileBtn?.classList.remove("active");
 
@@ -380,12 +507,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         try {
-            await api(`/users/${encodeURIComponent(currentUserId)}/change-password`, jsonOpts("POST", {
+            const cpRes = await api(`/users/${encodeURIComponent(currentUserId)}/change-password`, jsonOpts("POST", {
                 oldPassword: verifiedOldPassword,
                 newPassword,
                 confirmPassword,
                 email: currentUserEmail
             }));
+            if (cpRes?.token) {
+                sessionStorage.setItem("sohify_token", cpRes.token);
+                if (localStorage.getItem("sohify_remember_me") === "true") {
+                    localStorage.setItem("sohify_token", cpRes.token);
+                    if (cpRes.expiresAt) {
+                        localStorage.setItem("sohify_remember_expires_at", String(cpRes.expiresAt));
+                    }
+                }
+            }
             closeChangePasswordModal();
             showToast("Password changed successfully!", "fa-shield-halved");
         } catch (err) {
@@ -499,7 +635,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
     }
 
+    function renderHomeSkeletons() {
+        const latestGrid = document.getElementById("latestUploadsGrid");
+        if (!latestGrid || latestGrid.children.length > 0) return;
+        latestGrid.innerHTML = Array.from({ length: 4 }, () => `
+            <div class="music-card skeleton-card" aria-hidden="true">
+                <div class="skeleton-thumb"></div>
+                <div class="skeleton-line w-80"></div>
+                <div class="skeleton-line w-55"></div>
+            </div>
+        `).join("");
+    }
+
     async function fetchSongs() {
+        renderHomeSkeletons();
         try {
             const q = isLoggedIn() ? `?userId=${encodeURIComponent(currentUserId)}` : "";
             const songs = await api(`/songs${q}`);
@@ -520,7 +669,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 t.liked = liked.has(t.id);
                 if (localSet.has(t.id)) t.isLocal = true;
             });
-            initialRecent = lib.recentSongs || [];
+            initialRecent = Array.isArray(lib.recentSongs) ? lib.recentSongs : [];
+            if (typeof state !== "undefined" && state) {
+                state.recentPlayed = [...initialRecent];
+            }
             
             // Map Library Playlists, assigning isOwned to true for our own playlists
             playlists = (lib.playlists || []).map(p => ({
@@ -582,56 +734,64 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     ];
 
+    function renderHomeRecentSection() {
+        const homeRecentSection = document.getElementById("homeRecentSection");
+        const homeRecentGrid = document.getElementById("homeRecentGrid");
+        if (!homeRecentSection || !homeRecentGrid) return;
+
+        const recentSource = (typeof state !== "undefined" && state?.recentPlayed) ? state.recentPlayed : initialRecent;
+        const recentTracks = recentSource
+            .map(id => TRACKS.find(t => String(t.id) === String(id)))
+            .filter(Boolean)
+            .slice(0, 6);
+
+        if (recentTracks.length > 0) {
+            homeRecentSection.style.display = "block";
+            homeRecentGrid.innerHTML = recentTracks.map(t => createCardHTML(t)).join("");
+            attachCardListeners(homeRecentGrid);
+        } else {
+            homeRecentSection.style.display = "none";
+        }
+    }
+
     function renderHomeSections() {
         const publicTracks = TRACKS.filter(t => !t.isLocal);
 
         const latestGrid = document.getElementById("latestUploadsGrid");
         const heroBanner = document.getElementById("heroBanner");
-        const homeRecentSection = document.getElementById("homeRecentSection");
-        const homeRecentGrid = document.getElementById("homeRecentGrid");
         const curatedMixesGrid = document.getElementById("curatedMixesGrid");
         const catalogHeading = document.getElementById("catalogSectionHeading");
         const catalogPill = document.getElementById("catalogCountPill");
 
-        if (publicTracks.length === 0 && TRACKS.length === 0) {
-            if (latestGrid) latestGrid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><p>No tracks on the server yet. Click "Import Local Song" or Upload Audio to begin!</p></div>`;
-            if (heroBanner) heroBanner.style.display = "none";
-            return;
-        }
-
-        // 1. Hero Recommendation
+        // 1. Hero Recommendation (stable across mood toggles)
         if (heroBanner) {
-            heroBanner.style.display = "block";
-            heroTrack = publicTracks.length > 0
-                ? publicTracks[Math.floor(Math.random() * publicTracks.length)]
-                : TRACKS[0];
+            if (publicTracks.length === 0 && TRACKS.length === 0) {
+                heroBanner.style.display = "none";
+                heroTrack = null;
+            } else {
+                heroBanner.style.display = "block";
+                const heroStillExists = heroTrack && TRACKS.some(t => String(t.id) === String(heroTrack.id));
+                if (!heroStillExists) {
+                    heroTrack = publicTracks.length > 0
+                        ? publicTracks[Math.floor(Math.random() * publicTracks.length)]
+                        : TRACKS[0];
+                }
 
-            if (heroTrack) {
-                heroBanner.style.backgroundImage = `linear-gradient(135deg, rgba(5, 5, 11, 0.92) 0%, rgba(28, 12, 56, 0.8) 55%, rgba(0, 245, 212, 0.25) 100%), url('${escapeHtml(heroTrack.cover)}')`;
-                heroBanner.style.backgroundSize = "cover";
-                heroBanner.style.backgroundPosition = "center";
-                document.getElementById("heroTitle").textContent = heroTrack.title;
-                document.getElementById("heroDesc").textContent = `Recommended for you: ${heroTrack.artist} • ${heroTrack.album || 'Cloud Catalog'}`;
+                if (heroTrack) {
+                    const safeCoverUrl = String(heroTrack.cover || DEFAULT_COVER).replace(/['"\\()\r\n]/g, "\\$&");
+                    heroBanner.style.backgroundImage = `linear-gradient(135deg, rgba(5, 5, 11, 0.92) 0%, rgba(28, 12, 56, 0.8) 55%, rgba(0, 245, 212, 0.25) 100%), url('${safeCoverUrl}')`;
+                    heroBanner.style.backgroundSize = "cover";
+                    heroBanner.style.backgroundPosition = "center";
+                    const heroTitleEl = document.getElementById("heroTitle");
+                    const heroDescEl = document.getElementById("heroDesc");
+                    if (heroTitleEl) heroTitleEl.textContent = heroTrack.title;
+                    if (heroDescEl) heroDescEl.textContent = `Recommended for you: ${heroTrack.artist} • ${heroTrack.album || "Sound Pulse"}`;
+                }
             }
         }
 
         // 2. Jump Back In / Recently Played
-        if (state.recentPlayed.length > 0 && homeRecentSection && homeRecentGrid) {
-            const recentTracks = state.recentPlayed
-                .map(id => TRACKS.find(t => String(t.id) === String(id)))
-                .filter(Boolean)
-                .slice(0, 6);
-
-            if (recentTracks.length > 0) {
-                homeRecentSection.style.display = "block";
-                homeRecentGrid.innerHTML = recentTracks.map(t => createCardHTML(t)).join("");
-                attachCardListeners(homeRecentGrid);
-            } else {
-                homeRecentSection.style.display = "none";
-            }
-        } else if (homeRecentSection) {
-            homeRecentSection.style.display = "none";
-        }
+        renderHomeRecentSection();
 
         // 3. Filtered Catalog based on Active Mood Pill
         let displayTracks = publicTracks;
@@ -665,12 +825,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (catalogHeading) catalogHeading.textContent = "Private Audio Vault";
             if (catalogPill) catalogPill.textContent = `${displayTracks.length} Private`;
         } else {
-            if (catalogHeading) catalogHeading.textContent = "Latest Server Uploads";
+            if (catalogHeading) catalogHeading.textContent = "Latest Uploads";
             if (catalogPill) catalogPill.textContent = `${publicTracks.length} Tracks`;
         }
 
         if (latestGrid) {
-            if (displayTracks.length === 0) {
+            if (TRACKS.length === 0) {
+                latestGrid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><p>No songs yet. Click "Import Local Song" to add your music.</p></div>`;
+            } else if (displayTracks.length === 0) {
                 latestGrid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><p>No songs found for this mood.</p></div>`;
             } else {
                 latestGrid.innerHTML = displayTracks.map(t => createCardHTML(t)).join("");
@@ -753,9 +915,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // --- F. Audio Player State & References --------------------------------
     const audio = document.getElementById("audioElement");
-    if (audio) {
-        audio.crossOrigin = "anonymous";
-    }
 
     const state = {
         currentTrackIndex: 0,
@@ -909,7 +1068,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function updatePlayPauseIcons() {
         // Change icon to spin if waiting
-        const isWaiting = audio.readyState < 3 && !audio.paused && audio.src;
+        const isWaiting = audio.readyState < 3 && !audio.paused && !audio.ended && Boolean(audio.src);
 
         document.querySelectorAll(".playPauseBtn").forEach(btn => {
             const icon = btn.querySelector("i");
@@ -925,7 +1084,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const plBigPlayBtn = document.getElementById("plBigPlayBtn");
         if (plBigPlayBtn) {
             const icon = plBigPlayBtn.querySelector("i");
-            const isPlayingThisPl = state.isPlaying && state.activeFilter === "playlist";
+            const activePl = playlists.find(p => p.id === state.activePlaylistId);
+            const currId = TRACKS[state.currentTrackIndex]?.id;
+            const isTrackInPl = Boolean(activePl && currId && (activePl.trackIds || []).some(id => String(id) === String(currId)));
+            const isPlayingThisPl = state.isPlaying && state.activeFilter === "playlist" && isTrackInPl;
             if (icon) {
                 if (isWaiting && isPlayingThisPl) {
                     icon.className = "fa-solid fa-spinner fa-spin";
@@ -955,10 +1117,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         expandedCoverTitle.textContent = current.title;
         expandedCoverArtist.textContent = current.artist;
 
-        if (expandedCurrentTime) expandedCurrentTime.textContent = currentTimeLbl.textContent;
-        if (expandedDuration) expandedDuration.textContent = durationLbl.textContent;
-        if (expandedProgressFill && audio.duration) {
-            expandedProgressFill.style.width = ((audio.currentTime / audio.duration) * 100) + "%";
+        if (expandedCurrentTime) expandedCurrentTime.textContent = currentTimeLbl?.textContent || "0:00";
+        if (expandedDuration) expandedDuration.textContent = durationLbl?.textContent || "0:00";
+        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+            syncProgressUI();
+        } else if (expandedProgressFill) {
+            expandedProgressFill.style.width = progressFill?.style.width || "0%";
         }
         if (expandedShuffleBtn) expandedShuffleBtn.classList.toggle("active", state.isShuffle);
         if (expandedRepeatBtn) {
@@ -1091,6 +1255,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.activeFilter = "playlist";
         state.activePlaylistId = pl.id;
 
+        const searchInputEl = document.getElementById("searchInput");
+        const searchClearEl = document.getElementById("searchClearBtn");
+        if (searchInputEl) searchInputEl.value = "";
+        if (searchClearEl) searchClearEl.style.display = "none";
+
         const homeViewContainer = document.getElementById("homeViewContainer");
         if (homeViewContainer) homeViewContainer.style.display = "none";
 
@@ -1104,11 +1273,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         updatePlaylistBannerMeta(pl);
 
-        const userName = pl.creatorName || currentUserName || "Guest Listener";
+        const isOwner = pl.isOwned !== false;
+        const userName = pl.creatorName || (isOwner ? (currentUserName || "Listener") : "Sound Pulse Listener");
         const creatorNameEl = document.getElementById("plCreatorName");
         const creatorAvatarEl = document.getElementById("plCreatorAvatar");
         if (creatorNameEl) creatorNameEl.textContent = userName;
-        if (creatorAvatarEl) creatorAvatarEl.src = pl.creatorAvatar || userAvatarUrl;
+        if (creatorAvatarEl) creatorAvatarEl.src = pl.creatorAvatar || (isOwner ? userAvatarUrl : DEFAULT_AVATAR);
 
         if (tracklistHeading) tracklistHeading.textContent = pl.name;
         if (viewFilterPill) {
@@ -1117,7 +1287,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         
         // Hide edit/add/delete options if it's a shared playlist (not owned by the user)
-        const isOwner = pl.isOwned !== false;
         const plActionAddSongsBtn = document.getElementById("plActionAddSongsBtn");
         const plActionEditBtn = document.getElementById("plActionEditBtn");
         const plActionDeleteBtn = document.getElementById("plActionDeleteBtn");
@@ -1127,12 +1296,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (plActionEditBtn) plActionEditBtn.style.display = isOwner ? "inline-flex" : "none";
         if (plActionDeleteBtn) plActionDeleteBtn.style.display = isOwner ? "inline-flex" : "none";
         if (deleteCurrentPlaylistBtn) deleteCurrentPlaylistBtn.style.display = isOwner ? "inline-flex" : "none";
-        if (plActionShareBtn) plActionShareBtn.style.display = (isOwner && !pl.isPrivate) || isOwner ? "inline-flex" : "none";
+        if (plActionShareBtn) plActionShareBtn.style.display = (isOwner || !pl.isPrivate) ? "inline-flex" : "none";
 
         const plBigPlayBtn = document.getElementById("plBigPlayBtn");
         if (plBigPlayBtn) {
             plBigPlayBtn.onclick = () => {
-                const isPlayingThisPl = state.isPlaying && state.activePlaylistId === pl.id;
+                const currId = TRACKS[state.currentTrackIndex]?.id;
+                const isTrackInPl = Boolean(currId && (pl.trackIds || []).some(id => String(id) === String(currId)));
+                const isPlayingThisPl = state.isPlaying && state.activePlaylistId === pl.id && isTrackInPl;
                 if (isPlayingThisPl) {
                     togglePlayPause();
                 } else {
@@ -1191,6 +1362,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function openCreatePlaylistModal() {
+        closeDrawer();
         if (!requireLogin("Please log in to create playlists")) return;
         if (!createPlaylistModal) return;
         createPlaylistModal.classList.add("active");
@@ -1255,14 +1427,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (state.activePlaylistId) deletePlaylist(state.activePlaylistId);
     });
     
-    document.getElementById("plActionShareBtn")?.addEventListener("click", () => {
+    document.getElementById("plActionShareBtn")?.addEventListener("click", async () => {
         if (!state.activePlaylistId) return;
         const link = `${window.location.origin}${window.location.pathname}?playlist=${state.activePlaylistId}`;
-        navigator.clipboard.writeText(link).then(() => {
-            showToast("Playlist link copied to clipboard!", "fa-link");
-        }).catch(() => {
+        const copied = await copyTextToClipboard(link);
+        if (copied) {
+            showToast("Playlist link copied!", "fa-link");
+        } else {
             showToast("Failed to copy link", "fa-triangle-exclamation");
-        });
+        }
     });
 
     // --- PLAYLIST EDIT MODAL LOGIC ---
@@ -1555,17 +1728,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // --- L. Upload Workflow: Admin Public Catalog vs. User Private Cloud ---
     function openUploadModal(isCloud = false, preloadedAudioFile = null) {
+        closeDrawer();
         if (!requireLogin("Please log in to upload songs")) return;
         if (!uploadSongModal) return;
         state.isCloudUploadMode = isCloud;
 
         const btnTextEl = document.getElementById("confirmUploadBtnText");
         if (isCloud) {
-            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Admin Cloud Upload (Supabase + MongoDB)`;
-            if (btnTextEl) btnTextEl.textContent = "Upload to Cloud Catalog";
+            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Upload Public Song`;
+            if (btnTextEl) btnTextEl.textContent = "Publish Song";
         } else {
-            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Private Song (Cloud, Only You)`;
-            if (btnTextEl) btnTextEl.textContent = "Upload Privately & Play";
+            if (uploadModalTitle) uploadModalTitle.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Import Private Song`;
+            if (btnTextEl) btnTextEl.textContent = "Save & Play";
         }
 
         uploadSongModal.classList.add("active");
@@ -1692,7 +1866,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             showToast(error.message || "Upload failed", "fa-triangle-exclamation");
         } finally {
             confirmUploadBtn.disabled = false;
-            confirmUploadBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">${state.isCloudUploadMode ? "Upload to Cloud Catalog" : "Upload Privately & Play"}</span>`;
+            confirmUploadBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> <span id="confirmUploadBtnText">${state.isCloudUploadMode ? "Publish Song" : "Save & Play"}</span>`;
         }
     });
 
@@ -1729,7 +1903,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    [createPlaylistModal, addToPlaylistModal, uploadSongModal, editPlaylistModal].forEach(m => {
+    [
+        createPlaylistModal,
+        addToPlaylistModal,
+        uploadSongModal,
+        editPlaylistModal,
+        document.getElementById("sleepTimerModal"),
+        document.getElementById("shortcutsModal"),
+        document.getElementById("adminHubModal"),
+        document.getElementById("adminDeleteConfirmModal")
+    ].forEach(m => {
         m?.addEventListener("click", (e) => {
             if (e.target === m) m.classList.remove("active");
         });
@@ -1780,6 +1963,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateBadgeCounts();
 
         if (filtered.length === 0) {
+            const searchQ = (document.getElementById("searchInput")?.value || "").trim();
+            if (searchQ) {
+                trackList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <h3>No Matching Tracks</h3>
+                        <p>No tracks matched "${escapeHtml(searchQ)}".</p>
+                        <button class="btn btn-green" id="emptyActionBtn">
+                            <i class="fa-solid fa-xmark"></i> Clear Search
+                        </button>
+                    </div>
+                `;
+                document.getElementById("emptyActionBtn")?.addEventListener("click", clearSearchQuery);
+                return;
+            }
+
             let emptyMsg = "No tracks found.";
             if (state.activeFilter === "liked") {
                 emptyMsg = "You haven't liked any songs yet! Click the heart icon on any track to add it here.";
@@ -1831,6 +2030,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <button class="like-btn ${t.liked ? "liked" : ""}" data-track-id="${escapeHtml(t.id)}" title="Toggle Favorite">
                         <i class="${t.liked ? "fa-solid" : "fa-regular"} fa-heart"></i>
                     </button>
+                    ${isLoggedIn() && isAdmin && !t.isLocal && !t.isPrivate ? `
+                    <button class="btn-row-delete-song" data-track-id="${escapeHtml(t.id)}" title="Delete Song (Admin)">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                    ` : ""}
                     <button class="btn-row-more" data-track-id="${escapeHtml(t.id)}" title="More Options">
                         <i class="fa-solid fa-ellipsis-vertical"></i>
                     </button>
@@ -1840,7 +2044,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         trackList.querySelectorAll(".track-row").forEach(row => {
             row.addEventListener("click", (e) => {
-                if (e.target.closest(".like-btn") || e.target.closest(".btn-row-add-pl") || e.target.closest(".btn-row-add-queue") || e.target.closest(".btn-row-more")) return;
+                if (e.target.closest(".like-btn") || e.target.closest(".btn-row-add-pl") || e.target.closest(".btn-row-add-queue") || e.target.closest(".btn-row-more") || e.target.closest(".btn-row-delete-song")) return;
                 const idx = parseInt(row.dataset.index, 10);
                 if (idx === state.currentTrackIndex && audio.src) {
                     togglePlayPause();
@@ -1868,6 +2072,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
                 toggleFavorite(btn.dataset.trackId);
+            });
+        });
+
+        trackList.querySelectorAll(".btn-row-delete-song").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                openDeleteSongConfirm(btn.dataset.trackId);
             });
         });
 
@@ -1950,6 +2161,90 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // --- P. Audio Load & Play ----------------------------------------------
+    function safePlayAudio(notifyFailure = false) {
+        if (!audio) return;
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.then === "function") {
+            playPromise.then(() => {
+                state.isPlaying = true;
+                updatePlayPauseIcons();
+            }).catch((err) => {
+                if (err?.name === "AbortError") return;
+                state.isPlaying = false;
+                updatePlayPauseIcons();
+                if (notifyFailure && err?.name !== "NotAllowedError") {
+                    showToast("Could not play this audio track", "fa-triangle-exclamation");
+                }
+            });
+        }
+    }
+
+    let progressRafId = null;
+    let isScrubbingProgress = false;
+
+    function applyProgressUI(pct, currentSec, durationSec = null) {
+        const clampedPct = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0));
+        const widthVal = `${clampedPct}%`;
+        if (progressFill) progressFill.style.width = widthVal;
+        if (sheetProgressFill) sheetProgressFill.style.width = widthVal;
+        if (mobileTopProgressFill) mobileTopProgressFill.style.width = widthVal;
+        if (expandedProgressFill) expandedProgressFill.style.width = widthVal;
+
+        const curText = formatTime(currentSec);
+        if (currentTimeLbl && currentTimeLbl.textContent !== curText) currentTimeLbl.textContent = curText;
+        if (sheetCurrentTime && sheetCurrentTime.textContent !== curText) sheetCurrentTime.textContent = curText;
+        if (expandedCurrentTime && expandedCurrentTime.textContent !== curText) expandedCurrentTime.textContent = curText;
+
+        if (durationSec !== null && isFinite(durationSec) && durationSec > 0) {
+            const durText = formatTime(durationSec);
+            if (durationLbl && durationLbl.textContent !== durText) durationLbl.textContent = durText;
+            if (sheetDuration && sheetDuration.textContent !== durText) sheetDuration.textContent = durText;
+            if (expandedDuration && expandedDuration.textContent !== durText) expandedDuration.textContent = durText;
+        }
+    }
+
+    function resetProgressUI(track = null) {
+        applyProgressUI(0, 0);
+        const fallbackDur = (track && track.duration && track.duration !== "--:--") ? track.duration : "0:00";
+        if (durationLbl) durationLbl.textContent = fallbackDur;
+        if (sheetDuration) sheetDuration.textContent = fallbackDur;
+        if (expandedDuration) expandedDuration.textContent = fallbackDur;
+    }
+
+    function syncProgressUI() {
+        if (isScrubbingProgress) return;
+        const dur = (audio.duration && isFinite(audio.duration) && audio.duration > 0) ? audio.duration : 0;
+        const cur = (audio.currentTime && isFinite(audio.currentTime) && audio.currentTime > 0) ? audio.currentTime : 0;
+        const clampedCur = dur > 0 ? Math.min(cur, dur) : cur;
+        const pct = dur > 0 ? (clampedCur / dur) * 100 : 0;
+        applyProgressUI(pct, clampedCur, dur > 0 ? dur : null);
+    }
+
+    function stopProgressLoop() {
+        if (progressRafId !== null) {
+            cancelAnimationFrame(progressRafId);
+            progressRafId = null;
+        }
+    }
+
+    function startProgressLoop() {
+        stopProgressLoop();
+        if (!audio || audio.paused || audio.ended) return;
+
+        const tick = () => {
+            if (!audio || audio.paused || audio.ended) {
+                progressRafId = null;
+                return;
+            }
+            if (!isScrubbingProgress) {
+                syncProgressUI();
+            }
+            progressRafId = requestAnimationFrame(tick);
+        };
+
+        progressRafId = requestAnimationFrame(tick);
+    }
+
     function loadTrack(index, autoPlay = true) {
         if (TRACKS.length === 0) {
             if (autoPlay) showToast("No songs available to play yet", "fa-circle-info");
@@ -1957,14 +2252,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         if (index < 0 || index >= TRACKS.length) index = 0;
 
-        // If clicking on the exact track currently loaded
+        // If clicking/looping on the exact track currently loaded
         if (state.currentTrackIndex === index && audio.src && autoPlay) {
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-            if (audio.paused) {
-                audio.play().then(() => {
-                    state.isPlaying = true;
-                    updatePlayPauseIcons();
-                }).catch(err => console.warn(err));
+            if (audio.ended || audio.paused) {
+                if (audio.ended) {
+                    stopProgressLoop();
+                    isScrubbingProgress = false;
+                    audio.currentTime = 0;
+                    applyProgressUI(0, 0, audio.duration);
+                }
+                safePlayAudio(true);
             }
             return;
         }
@@ -1972,10 +2269,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.currentTrackIndex = index;
         const track = TRACKS[index];
 
+        stopProgressLoop();
+        isScrubbingProgress = false;
+        [progressSlider, sheetProgressSlider, expandedProgressSlider].forEach(el => el?.classList.remove("scrubbing"));
+
+        const speed = state.playbackSpeed || 1.0;
+        audio.defaultPlaybackRate = speed;
         audio.src = track.src;
         audio.load();
-        audio.playbackRate = state.playbackSpeed || 1.0;
+        audio.playbackRate = speed;
         audio.volume = state.isMuted ? 0 : state.volume;
+
+        resetProgressUI(track);
 
         if (currentTitle) currentTitle.textContent = track.title;
         if (currentArtist) currentArtist.textContent = track.artist;
@@ -1998,10 +2303,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderQueue();
 
         if (autoPlay) {
-            audio.play().then(() => {
-                state.isPlaying = true;
-                updatePlayPauseIcons();
-            }).catch(err => console.warn("Autoplay notice:", err));
+            safePlayAudio(true);
         }
     }
 
@@ -2014,11 +2316,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             loadTrack(state.currentTrackIndex, true);
             return;
         }
-        if (audio.paused) {
-            audio.play().then(() => {
-                state.isPlaying = true;
-                updatePlayPauseIcons();
-            }).catch(err => console.warn(err));
+        if (audio.ended || audio.paused) {
+            if (audio.ended) {
+                stopProgressLoop();
+                audio.currentTime = 0;
+                applyProgressUI(0, 0, audio.duration);
+            }
+            safePlayAudio(true);
         } else {
             audio.pause();
             state.isPlaying = false;
@@ -2034,41 +2338,57 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // --- Q. Audio Playback Event Listeners ---------------------------------
-    
-    let progressRafId = null;
-    
-    function smoothProgressUpdate() {
-        if (audio.duration && isFinite(audio.duration) && !audio.paused) {
-            const pct = (audio.currentTime / audio.duration) * 100;
-            if (progressFill) progressFill.style.width = pct + "%";
-            if (sheetProgressFill) sheetProgressFill.style.width = pct + "%";
-            if (mobileTopProgressFill) mobileTopProgressFill.style.width = pct + "%";
-            if (expandedProgressFill) expandedProgressFill.style.width = pct + "%";
+    function handleAudioMetadata() {
+        if (!audio.duration || !isFinite(audio.duration) || audio.duration <= 0) return;
 
-            const cur = formatTime(audio.currentTime);
-            if (currentTimeLbl && currentTimeLbl.textContent !== cur) currentTimeLbl.textContent = cur;
-            if (sheetCurrentTime && sheetCurrentTime.textContent !== cur) sheetCurrentTime.textContent = cur;
-            if (expandedCurrentTime && expandedCurrentTime.textContent !== cur) expandedCurrentTime.textContent = cur;
+        audio.playbackRate = state.playbackSpeed || 1.0;
 
-            progressRafId = requestAnimationFrame(smoothProgressUpdate);
+        const dur = formatTime(audio.duration);
+        if (durationLbl) durationLbl.textContent = dur;
+        if (sheetDuration) sheetDuration.textContent = dur;
+        if (expandedDuration) expandedDuration.textContent = dur;
+
+        syncProgressUI();
+        if (!audio.paused && !audio.ended) {
+            startProgressLoop();
+        }
+
+        const current = TRACKS[state.currentTrackIndex];
+        if (current && (current.duration === "--:--" || current.duration === "0:00" || !current.duration)) {
+            current.duration = dur;
+            renderTrackList();
         }
     }
 
     // Audio Engine Buffering and Performance Events
     audio.addEventListener('waiting', updatePlayPauseIcons);
-    audio.addEventListener('playing', updatePlayPauseIcons);
     audio.addEventListener('canplay', updatePlayPauseIcons);
+    audio.addEventListener('playing', () => {
+        state.isPlaying = true;
+        audio.playbackRate = state.playbackSpeed || 1.0;
+        updatePlayPauseIcons();
+        syncProgressUI();
+        startProgressLoop();
+    });
+    audio.addEventListener('error', () => {
+        state.isPlaying = false;
+        stopProgressLoop();
+        isScrubbingProgress = false;
+        [progressSlider, sheetProgressSlider, expandedProgressSlider].forEach(el => el?.classList.remove("scrubbing"));
+        updatePlayPauseIcons();
+        resetProgressUI(TRACKS[state.currentTrackIndex]);
+        if (audio.src) showToast("Unable to play this audio track", "fa-triangle-exclamation");
+    });
 
     audio.addEventListener("play", () => {
         state.isPlaying = true;
         updatePlayPauseIcons();
-
-        if (progressRafId) cancelAnimationFrame(progressRafId);
-        progressRafId = requestAnimationFrame(smoothProgressUpdate);
+        startProgressLoop();
 
         const track = TRACKS[state.currentTrackIndex];
         if (!track || state.recentPlayed[0] === track.id) return;
         state.recentPlayed = [track.id, ...state.recentPlayed.filter(id => id !== track.id)].slice(0, 10);
+        renderHomeRecentSection();
         if (isLoggedIn()) {
             api(`/users/${currentUserId}/recent`, jsonOpts("POST", { songId: track.id }))
                 .catch(err => console.warn("Could not save recent song:", err.message));
@@ -2076,44 +2396,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     audio.addEventListener("pause", () => {
+        if (!audio.paused && !audio.ended) return;
         state.isPlaying = false;
+        stopProgressLoop();
         updatePlayPauseIcons();
-        if (progressRafId) cancelAnimationFrame(progressRafId);
-    });
-
-    audio.addEventListener("loadedmetadata", () => {
-        const dur = formatTime(audio.duration);
-        if (durationLbl) durationLbl.textContent = dur;
-        if (sheetDuration) sheetDuration.textContent = dur;
-        if (expandedDuration) expandedDuration.textContent = dur;
-
-        const current = TRACKS[state.currentTrackIndex];
-        if (current && (current.duration === "--:--" || current.duration === "0:00")) {
-            current.duration = dur;
-            renderTrackList();
+        if (!audio.ended) {
+            syncProgressUI();
         }
     });
+
+    audio.addEventListener("loadedmetadata", handleAudioMetadata);
+    audio.addEventListener("durationchange", handleAudioMetadata);
 
     audio.addEventListener("timeupdate", () => {
-        if (audio.paused) {
-            if (!audio.duration || !isFinite(audio.duration)) return;
-            const pct = (audio.currentTime / audio.duration) * 100;
-            if (progressFill) progressFill.style.width = pct + "%";
-            if (sheetProgressFill) sheetProgressFill.style.width = pct + "%";
-            if (mobileTopProgressFill) mobileTopProgressFill.style.width = pct + "%";
-            if (expandedProgressFill) expandedProgressFill.style.width = pct + "%";
-            const cur = formatTime(audio.currentTime);
-            if (currentTimeLbl) currentTimeLbl.textContent = cur;
-            if (sheetCurrentTime) sheetCurrentTime.textContent = cur;
-            if (expandedCurrentTime) expandedCurrentTime.textContent = cur;
+        if (!isScrubbingProgress) {
+            syncProgressUI();
+        }
+        if (!audio.paused && !audio.ended && progressRafId === null) {
+            startProgressLoop();
         }
     });
 
-    audio.addEventListener("ended", handleTrackEnd);
+    audio.addEventListener("seeked", () => {
+        if (!isScrubbingProgress) {
+            syncProgressUI();
+        }
+    });
+
+    audio.addEventListener("ended", () => {
+        stopProgressLoop();
+        isScrubbingProgress = false;
+        [progressSlider, sheetProgressSlider, expandedProgressSlider].forEach(el => el?.classList.remove("scrubbing"));
+        syncProgressUI();
+        handleTrackEnd();
+    });
 
     function handleTrackEnd() {
         if (state.sleepTimer.endOfTrack) {
             clearSleepTimer();
+            audio.pause();
             state.isPlaying = false;
             updatePlayPauseIcons();
             showToast("Sleep timer: Playback ended after track 🌙", "fa-moon");
@@ -2121,8 +2442,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         if (state.repeatMode === "one") {
+            stopProgressLoop();
+            isScrubbingProgress = false;
             audio.currentTime = 0;
-            audio.play();
+            applyProgressUI(0, 0, audio.duration);
+            safePlayAudio(false);
             return;
         }
 
@@ -2138,6 +2462,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const contextTracks = getContextTracks();
         if (contextTracks.length === 0) {
+            audio.pause();
             state.isPlaying = false;
             updatePlayPauseIcons();
             return;
@@ -2160,6 +2485,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const firstGlobalIdx = TRACKS.findIndex(t => String(t.id) === String(contextTracks[0].id));
                 if (firstGlobalIdx !== -1) loadTrack(firstGlobalIdx, true);
             } else {
+                audio.pause();
                 state.isPlaying = false;
                 updatePlayPauseIcons();
             }
@@ -2215,7 +2541,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     function playPrevious() {
         if (audio.currentTime > 3) {
             audio.currentTime = 0;
-            if (!state.isPlaying) audio.play();
+            applyProgressUI(0, 0, audio.duration);
+            if (audio.ended || audio.paused || !state.isPlaying) safePlayAudio(false);
             return;
         }
 
@@ -2264,36 +2591,85 @@ document.addEventListener("DOMContentLoaded", async () => {
     [shuffleBtn, sheetShuffleBtn, expandedShuffleBtn].forEach(b => b?.addEventListener("click", toggleShuffle));
     [repeatBtn, sheetRepeatBtn, expandedRepeatBtn].forEach(b => b?.addEventListener("click", toggleRepeat));
 
-    function seekFromEvent(e, trackEl) {
+    function getEventClientX(e) {
+        if (e.touches && e.touches.length > 0) return e.touches[0].clientX;
+        if (e.changedTouches && e.changedTouches.length > 0) return e.changedTouches[0].clientX;
+        return e.clientX;
+    }
+
+    function getSliderFraction(e, trackEl) {
         const rect = trackEl.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        let pct = (clientX - rect.left) / rect.width;
-        pct = Math.max(0, Math.min(1, pct));
-        if (audio.duration && isFinite(audio.duration)) {
-            audio.currentTime = pct * audio.duration;
-            if (progressFill) progressFill.style.width = (pct * 100) + "%";
-            if (sheetProgressFill) sheetProgressFill.style.width = (pct * 100) + "%";
-            if (mobileTopProgressFill) mobileTopProgressFill.style.width = (pct * 100) + "%";
-            if (expandedProgressFill) expandedProgressFill.style.width = (pct * 100) + "%";
-        }
+        if (!rect || rect.width <= 0) return null;
+        const clientX = getEventClientX(e);
+        if (typeof clientX !== "number" || isNaN(clientX)) return null;
+        return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     }
 
     function makeSeekable(trackEl) {
         if (!trackEl) return;
         let isDragging = false;
+        let pendingFraction = null;
+        let suppressNextClick = false;
 
-        const start = (e) => { isDragging = true; seekFromEvent(e, trackEl); };
-        const move = (e) => { if (!isDragging) return; seekFromEvent(e, trackEl); };
-        const end = () => { isDragging = false; };
+        const previewFraction = (pct) => {
+            if (pct === null || !audio.duration || !isFinite(audio.duration) || audio.duration <= 0) return;
+            pendingFraction = pct;
+            applyProgressUI(pct * 100, pct * audio.duration, audio.duration);
+        };
+
+        const commitSeek = (pct) => {
+            if (pct === null || !audio.duration || !isFinite(audio.duration) || audio.duration <= 0) return;
+            audio.currentTime = pct * audio.duration;
+            applyProgressUI(pct * 100, audio.currentTime, audio.duration);
+        };
+
+        const start = (e) => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (!audio.duration || !isFinite(audio.duration) || audio.duration <= 0) return;
+            if (!e.touches) e.preventDefault();
+            isDragging = true;
+            isScrubbingProgress = true;
+            trackEl.classList.add("scrubbing");
+            previewFraction(getSliderFraction(e, trackEl));
+        };
+
+        const move = (e) => {
+            if (!isDragging) return;
+            previewFraction(getSliderFraction(e, trackEl));
+        };
+
+        const finish = (shouldCommit) => {
+            if (!isDragging) return;
+            isDragging = false;
+            trackEl.classList.remove("scrubbing");
+            isScrubbingProgress = false;
+            if (shouldCommit && pendingFraction !== null) {
+                commitSeek(pendingFraction);
+                suppressNextClick = true;
+                setTimeout(() => { suppressNextClick = false; }, 0);
+            } else {
+                syncProgressUI();
+            }
+            pendingFraction = null;
+        };
 
         trackEl.addEventListener("mousedown", start);
-        trackEl.addEventListener("click", (e) => seekFromEvent(e, trackEl));
         document.addEventListener("mousemove", move);
-        document.addEventListener("mouseup", end);
+        document.addEventListener("mouseup", () => finish(true));
+
+        trackEl.addEventListener("click", (e) => {
+            if (suppressNextClick) {
+                suppressNextClick = false;
+                return;
+            }
+            const pct = getSliderFraction(e, trackEl);
+            if (pct !== null) commitSeek(pct);
+        });
 
         trackEl.addEventListener("touchstart", (e) => { e.preventDefault(); start(e); }, { passive: false });
         document.addEventListener("touchmove", (e) => { if (isDragging) { e.preventDefault(); move(e); } }, { passive: false });
-        document.addEventListener("touchend", end);
+        document.addEventListener("touchend", () => finish(true));
+        document.addEventListener("touchcancel", () => finish(false));
     }
 
     makeSeekable(progressSlider);
@@ -2324,28 +2700,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function volumeFromEvent(e, trackEl) {
-        const rect = trackEl.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        let pct = (clientX - rect.left) / rect.width;
-        setVolume(pct);
+        const pct = getSliderFraction(e, trackEl);
+        if (pct !== null) setVolume(pct);
     }
 
     function makeVolumeDraggable(trackEl) {
         if (!trackEl) return;
         let isDragging = false;
+        let suppressNextClick = false;
 
-        const start = (e) => { isDragging = true; volumeFromEvent(e, trackEl); };
+        const start = (e) => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (!e.touches) e.preventDefault();
+            isDragging = true;
+            trackEl.classList.add("scrubbing");
+            volumeFromEvent(e, trackEl);
+        };
         const move = (e) => { if (!isDragging) return; volumeFromEvent(e, trackEl); };
-        const end = () => { isDragging = false; };
+        const end = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            trackEl.classList.remove("scrubbing");
+            suppressNextClick = true;
+            setTimeout(() => { suppressNextClick = false; }, 0);
+        };
 
         trackEl.addEventListener("mousedown", start);
-        trackEl.addEventListener("click", (e) => volumeFromEvent(e, trackEl));
+        trackEl.addEventListener("click", (e) => {
+            if (suppressNextClick) {
+                suppressNextClick = false;
+                return;
+            }
+            volumeFromEvent(e, trackEl);
+        });
         document.addEventListener("mousemove", move);
         document.addEventListener("mouseup", end);
 
         trackEl.addEventListener("touchstart", (e) => { e.preventDefault(); start(e); }, { passive: false });
         document.addEventListener("touchmove", (e) => { if (isDragging) { e.preventDefault(); move(e); } }, { passive: false });
         document.addEventListener("touchend", end);
+        document.addEventListener("touchcancel", end);
     }
 
     makeVolumeDraggable(volumeSlider);
@@ -2426,9 +2820,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function toggleQueue() {
-        if (queuePanel) {
-            queuePanel.classList.toggle("open");
-            if (queuePanel.classList.contains("open")) renderQueue();
+        if (!queuePanel) return;
+        const willOpen = !queuePanel.classList.contains("open");
+        if (willOpen) {
+            closeDrawer();
+            userInfoCard?.classList.remove("open");
+            userProfileBtn?.classList.remove("active");
+            document.getElementById("speedPopover")?.classList.remove("active");
+            closeTrackContextMenu();
+            queuePanel.classList.add("open");
+            renderQueue();
+        } else {
+            queuePanel.classList.remove("open");
         }
     }
 
@@ -2453,8 +2856,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.activeFilter = filterName;
         state.activePlaylistId = null;
 
-        const searchInput = document.getElementById("searchInput");
-        if (searchInput) searchInput.value = "";
+        const searchInputEl = document.getElementById("searchInput");
+        const searchClearEl = document.getElementById("searchClearBtn");
+        if (searchInputEl) searchInputEl.value = "";
+        if (searchClearEl) searchClearEl.style.display = "none";
 
         const homeViewContainer = document.getElementById("homeViewContainer");
         const plBanner = document.getElementById("playlistDetailBanner");
@@ -2548,33 +2953,52 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // Handle Search Bar Interactions
-    document.getElementById("searchInput")?.addEventListener("input", (e) => {
-        const q = e.target.value.trim();
+    const searchInputEl = document.getElementById("searchInput");
+    const searchClearBtn = document.getElementById("searchClearBtn");
+
+    function handleSearchUpdate() {
+        const raw = searchInputEl?.value || "";
+        const q = raw.trim();
+        if (searchClearBtn) {
+            searchClearBtn.style.display = raw.length > 0 ? "inline-flex" : "none";
+        }
+
         const homeViewContainer = document.getElementById("homeViewContainer");
         const mainTracklist = document.getElementById("mainTracklistSection");
-        const tracklistHeading = document.getElementById("tracklistHeading");
-        const viewFilterPill = document.getElementById("viewFilterPill");
+        const tracklistHeadingEl = document.getElementById("tracklistHeading");
+        const viewFilterPillEl = document.getElementById("viewFilterPill");
 
         if (state.activeFilter === "all") {
             if (q.length > 0) {
                 if (homeViewContainer) homeViewContainer.style.display = "none";
                 if (mainTracklist) mainTracklist.style.display = "block";
-                
-                if (tracklistHeading) tracklistHeading.textContent = "Search Results";
-                if (viewFilterPill) {
-                    viewFilterPill.style.display = "inline-block";
-                    viewFilterPill.textContent = "Search";
+
+                if (tracklistHeadingEl) tracklistHeadingEl.textContent = "Search Results";
+                if (viewFilterPillEl) {
+                    viewFilterPillEl.style.display = "inline-block";
+                    viewFilterPillEl.textContent = "Search";
                 }
             } else {
                 if (homeViewContainer) homeViewContainer.style.display = "block";
                 if (mainTracklist) mainTracklist.style.display = "none";
-                
-                if (tracklistHeading) tracklistHeading.textContent = "Home";
-                if (viewFilterPill) viewFilterPill.style.display = "none";
+
+                if (tracklistHeadingEl) tracklistHeadingEl.textContent = "Home";
+                if (viewFilterPillEl) viewFilterPillEl.style.display = "none";
             }
         }
-        
+
         renderTrackList();
+    }
+
+    function clearSearchQuery() {
+        if (searchInputEl) searchInputEl.value = "";
+        handleSearchUpdate();
+    }
+
+    searchInputEl?.addEventListener("input", handleSearchUpdate);
+    searchClearBtn?.addEventListener("click", () => {
+        clearSearchQuery();
+        searchInputEl?.focus();
     });
 
     const mobileMenuBtn = document.getElementById("mobileMenuBtn");
@@ -2582,8 +3006,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     const sidebarOverlay = document.getElementById("sidebarOverlay");
     const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
 
-    function openDrawer() { sidebar?.classList.add("open"); sidebarOverlay?.classList.add("active"); }
-    function closeDrawer() { sidebar?.classList.remove("open"); sidebarOverlay?.classList.remove("active"); }
+    function closeSheet() {
+        mobileSheet?.classList.remove("active");
+        queuePanel?.classList.remove("open");
+        document.getElementById("speedPopover")?.classList.remove("active");
+    }
+
+    function openDrawer() {
+        closeSheet();
+        userInfoCard?.classList.remove("open");
+        userProfileBtn?.classList.remove("active");
+        queuePanel?.classList.remove("open");
+        document.getElementById("speedPopover")?.classList.remove("active");
+        closeTrackContextMenu();
+        sidebar?.classList.add("open");
+        sidebarOverlay?.classList.add("active");
+        mobileMenuBtn?.setAttribute("aria-expanded", "true");
+    }
+
+    function closeDrawer() {
+        sidebar?.classList.remove("open");
+        sidebarOverlay?.classList.remove("active");
+        mobileMenuBtn?.setAttribute("aria-expanded", "false");
+    }
 
     mobileMenuBtn?.addEventListener("click", openDrawer);
     sidebarCloseBtn?.addEventListener("click", closeDrawer);
@@ -2593,8 +3038,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     const mobileExpandBtn = document.getElementById("mobileExpandBtn");
     const sheetCloseBtn = document.getElementById("sheetCloseBtn");
 
-    function openSheet() { mobileSheet?.classList.add("active"); }
-    function closeSheet() { mobileSheet?.classList.remove("active"); }
+    function openSheet() {
+        closeDrawer();
+        userInfoCard?.classList.remove("open");
+        userProfileBtn?.classList.remove("active");
+        document.getElementById("speedPopover")?.classList.remove("active");
+        mobileSheet?.classList.add("active");
+    }
+
+    window.addEventListener("resize", () => {
+        if (window.innerWidth >= 900) {
+            closeDrawer();
+            closeSheet();
+        }
+    });
 
     mobileExpandBtn?.addEventListener("click", (e) => { e.stopPropagation(); openSheet(); });
     document.getElementById("playerBar")?.addEventListener("click", (e) => {
@@ -2688,6 +3145,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // --- B. SLEEP TIMER -----------------------------------------------------
+    function syncSleepTimerButtons(isActive) {
+        document.getElementById("sheetSleepBtn")?.classList.toggle("active", Boolean(isActive));
+        document.getElementById("sleepTimerBtn")?.classList.toggle("active", Boolean(isActive));
+    }
+
     function startSleepTimer(minutes) {
         clearSleepTimer();
         const badge = document.getElementById("sleepTimerBadge");
@@ -2700,6 +3162,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 badge.textContent = "Song";
             }
             if (cancelBtn) cancelBtn.style.display = "flex";
+            syncSleepTimerButtons(true);
             showToast("Sleep timer: Pauses after current track 🌙", "fa-moon");
             closeSleepTimerModal();
             return;
@@ -2714,6 +3177,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             badge.textContent = `${mins}m`;
         }
         if (cancelBtn) cancelBtn.style.display = "flex";
+        syncSleepTimerButtons(true);
 
         showToast(`Sleep timer set for ${mins} minutes 🌙`, "fa-moon");
         closeSleepTimerModal();
@@ -2750,9 +3214,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (badge) badge.style.display = "none";
         const cancelBtn = document.getElementById("turnOffSleepTimerBtn");
         if (cancelBtn) cancelBtn.style.display = "none";
+        syncSleepTimerButtons(false);
     }
 
     function openSleepTimerModal() {
+        closeDrawer();
+        document.getElementById("speedPopover")?.classList.remove("active");
+        queuePanel?.classList.remove("open");
         document.getElementById("sleepTimerModal")?.classList.add("active");
     }
     function closeSleepTimerModal() {
@@ -2760,6 +3228,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     document.getElementById("sleepTimerBtn")?.addEventListener("click", openSleepTimerModal);
+    document.getElementById("sheetSleepBtn")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSleepTimerModal();
+    });
     document.getElementById("closeSleepTimerBtn")?.addEventListener("click", closeSleepTimerModal);
     document.getElementById("turnOffSleepTimerBtn")?.addEventListener("click", () => {
         clearSleepTimer();
@@ -2778,7 +3250,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         state.playbackSpeed = speed;
         audio.playbackRate = speed;
         const speedBtn = document.getElementById("speedBtn");
-        if (speedBtn) speedBtn.textContent = `${speed}x`;
+        const sheetSpeedBtn = document.getElementById("sheetSpeedBtn");
+        if (speedBtn) {
+            speedBtn.textContent = `${speed}x`;
+            speedBtn.classList.toggle("active", speed !== 1.0);
+        }
+        if (sheetSpeedBtn) {
+            sheetSpeedBtn.textContent = `${speed}x`;
+            sheetSpeedBtn.classList.toggle("active", speed !== 1.0);
+        }
 
         document.querySelectorAll(".speed-option").forEach((opt) => {
             opt.classList.toggle("active", parseFloat(opt.dataset.speed) === speed);
@@ -2787,10 +3267,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         showToast(`Speed: ${speed}x`, "fa-gauge-high");
     }
 
-    document.getElementById("speedBtn")?.addEventListener("click", (e) => {
+    function toggleSpeedPopover(e) {
         e.stopPropagation();
+        queuePanel?.classList.remove("open");
         document.getElementById("speedPopover")?.classList.toggle("active");
-    });
+    }
+
+    document.getElementById("speedBtn")?.addEventListener("click", toggleSpeedPopover);
+    document.getElementById("sheetSpeedBtn")?.addEventListener("click", toggleSpeedPopover);
 
     document.querySelectorAll(".speed-option").forEach((opt) => {
         opt.addEventListener("click", () => {
@@ -2806,9 +3290,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         const menu = document.getElementById("trackContextMenu");
         if (!menu) return;
 
+        const ctxAdminDivider = document.getElementById("ctxAdminDivider");
+        const ctxDeleteSong = document.getElementById("ctxDeleteSong");
+        const targetTrack = TRACKS.find(t => String(t.id) === String(trackId));
+        const isPublicTrack = Boolean(targetTrack && !targetTrack.isLocal && !targetTrack.isPrivate);
+        const showAdmin = Boolean(isLoggedIn() && isAdmin && isPublicTrack);
+        if (ctxAdminDivider) ctxAdminDivider.style.display = showAdmin ? "block" : "none";
+        if (ctxDeleteSong) ctxDeleteSong.style.display = showAdmin ? "flex" : "none";
+
         menu.style.display = "block";
         const menuWidth = 210;
-        const menuHeight = 220;
+        const menuHeight = showAdmin ? 270 : 220;
 
         let x = e.clientX;
         let y = e.clientY;
@@ -2881,20 +3373,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         closeTrackContextMenu();
     });
 
-    document.getElementById("ctxCopyLink")?.addEventListener("click", () => {
+    document.getElementById("ctxCopyLink")?.addEventListener("click", async () => {
         const track = TRACKS.find((t) => String(t.id) === String(contextTargetTrackId));
         if (track) {
-            navigator.clipboard.writeText(track.src).then(() => {
-                showToast("Audio link copied to clipboard!", "fa-link");
-            }).catch(() => {
+            const copied = await copyTextToClipboard(track.src);
+            if (copied) {
+                showToast("Audio link copied!", "fa-link");
+            } else {
                 showToast("Failed to copy link", "fa-triangle-exclamation");
-            });
+            }
+        }
+        closeTrackContextMenu();
+    });
+
+    document.getElementById("ctxDeleteSong")?.addEventListener("click", () => {
+        if (contextTargetTrackId) {
+            openDeleteSongConfirm(contextTargetTrackId);
         }
         closeTrackContextMenu();
     });
 
     // --- G. KEYBOARD SHORTCUTS MODAL ----------------------------------------
     function openShortcutsModal() {
+        closeDrawer();
         document.getElementById("shortcutsModal")?.classList.add("active");
     }
     function closeShortcutsModal() {
@@ -2920,25 +3421,615 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
+    // =========================================================================
+    // 17. ADMIN HUB & SONG CATALOG MANAGEMENT
+    // =========================================================================
+    const adminHubModal = document.getElementById("adminHubModal");
+    const closeAdminModalBtn = document.getElementById("closeAdminModalBtn");
+    const adminRefreshBtn = document.getElementById("adminRefreshBtn");
+    const adminStatTotalSongs = document.getElementById("adminStatTotalSongs");
+    const adminStatPublicSongs = document.getElementById("adminStatPublicSongs");
+    const adminStatPrivateSongs = document.getElementById("adminStatPrivateSongs");
+    const adminStatTotalUsers = document.getElementById("adminStatTotalUsers");
+    const adminStatAdminUsers = document.getElementById("adminStatAdminUsers");
+    const adminStatRegularUsers = document.getElementById("adminStatRegularUsers");
+    const adminTabSongs = document.getElementById("adminTabSongs");
+    const adminTabUsers = document.getElementById("adminTabUsers");
+    const adminTabSongsBadge = document.getElementById("adminTabSongsBadge");
+    const adminTabUsersBadge = document.getElementById("adminTabUsersBadge");
+    const adminSongsPane = document.getElementById("adminSongsPane");
+    const adminUsersPane = document.getElementById("adminUsersPane");
+    const adminSongSearchInput = document.getElementById("adminSongSearchInput");
+    const adminSongSearchClear = document.getElementById("adminSongSearchClear");
+    const adminSongFilterPills = document.getElementById("adminSongFilterPills");
+    const adminPillAllCount = document.getElementById("adminPillAllCount");
+    const adminPillPublicCount = document.getElementById("adminPillPublicCount");
+    const adminPillPrivateCount = document.getElementById("adminPillPrivateCount");
+    const adminSongList = document.getElementById("adminSongList");
+    const adminUserSearchInput = document.getElementById("adminUserSearchInput");
+    const adminUserList = document.getElementById("adminUserList");
+
+    const adminDeleteConfirmModal = document.getElementById("adminDeleteConfirmModal");
+    const closeDeleteConfirmModalBtn = document.getElementById("closeDeleteConfirmModalBtn");
+    const cancelDeleteSongBtn = document.getElementById("cancelDeleteSongBtn");
+    const confirmDeleteSongBtn = document.getElementById("confirmDeleteSongBtn");
+    const deleteConfirmCover = document.getElementById("deleteConfirmCover");
+    const deleteConfirmTitle = document.getElementById("deleteConfirmTitle");
+    const deleteConfirmArtist = document.getElementById("deleteConfirmArtist");
+    const deleteConfirmType = document.getElementById("deleteConfirmType");
+
+    let adminCachedSongs = [];
+    let adminCachedUsers = [];
+    let adminSongFilter = "all";
+    let adminSongSearchQuery = "";
+    let adminUserSearchQuery = "";
+    let pendingDeleteSongId = null;
+
+    async function openAdminHubModal() {
+        if (!isLoggedIn() || !isAdmin) {
+            showToast("Access restricted to administrators", "fa-shield-halved");
+            return;
+        }
+        closeDrawer();
+        closeSheet();
+        closeTrackContextMenu();
+        userInfoCard?.classList.remove("open");
+        userProfileBtn?.classList.remove("active");
+
+        adminHubModal?.classList.add("active");
+        await Promise.allSettled([
+            loadAdminStats(true),
+            loadAdminSongs(),
+            loadAdminUsers()
+        ]);
+    }
+
+    function closeAdminHubModal() {
+        adminHubModal?.classList.remove("active");
+    }
+
+    async function loadAdminStats(spin = false) {
+        if (!isLoggedIn() || !isAdmin) return;
+        if (spin && adminRefreshBtn) adminRefreshBtn.classList.add("spinning");
+        try {
+            const res = await api(`/admin/stats?userId=${encodeURIComponent(currentUserId)}`);
+            if (res && res.stats) {
+                const { totalSongs, publicSongs, privateSongs, totalUsers, adminUsers, regularUsers } = res.stats;
+                if (adminStatTotalSongs) adminStatTotalSongs.textContent = Number(totalSongs).toLocaleString();
+                if (adminStatPublicSongs) adminStatPublicSongs.textContent = `${Number(publicSongs).toLocaleString()} Public Catalog`;
+                if (adminStatPrivateSongs) adminStatPrivateSongs.textContent = `${Number(privateSongs).toLocaleString()} Private Vault`;
+
+                if (adminStatTotalUsers) adminStatTotalUsers.textContent = Number(totalUsers).toLocaleString();
+                if (adminStatAdminUsers) adminStatAdminUsers.textContent = `${Number(adminUsers).toLocaleString()} Admins`;
+                if (adminStatRegularUsers) adminStatRegularUsers.textContent = `${Number(regularUsers).toLocaleString()} Listeners`;
+
+                if (adminTabSongsBadge) adminTabSongsBadge.textContent = String(totalSongs);
+                if (adminTabUsersBadge) adminTabUsersBadge.textContent = String(totalUsers);
+            }
+        } catch (err) {
+            console.error("loadAdminStats error:", err);
+            showToast("Failed to refresh platform statistics", "fa-triangle-exclamation");
+        } finally {
+            if (spin && adminRefreshBtn) {
+                setTimeout(() => adminRefreshBtn.classList.remove("spinning"), 500);
+            }
+        }
+    }
+
+    function updateSongFilterCounts() {
+        const total = adminCachedSongs.length;
+        const pub = adminCachedSongs.filter(s => !s.isPrivate).length;
+        const priv = adminCachedSongs.filter(s => s.isPrivate).length;
+
+        if (adminPillAllCount) adminPillAllCount.textContent = total;
+        if (adminPillPublicCount) adminPillPublicCount.textContent = pub;
+        if (adminPillPrivateCount) adminPillPrivateCount.textContent = priv;
+        if (adminTabSongsBadge) adminTabSongsBadge.textContent = total;
+    }
+
+    async function loadAdminSongs() {
+        if (!isLoggedIn() || !isAdmin) return;
+        try {
+            if (adminSongList) {
+                adminSongList.innerHTML = `
+                    <div class="admin-table-empty">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <p>Loading song catalog...</p>
+                    </div>
+                `;
+            }
+            const res = await api(`/admin/songs?userId=${encodeURIComponent(currentUserId)}`);
+            adminCachedSongs = Array.isArray(res?.songs) ? res.songs : [];
+            updateSongFilterCounts();
+            renderAdminSongs();
+        } catch (err) {
+            console.error("loadAdminSongs error:", err);
+            if (adminSongList) {
+                adminSongList.innerHTML = `
+                    <div class="admin-table-empty">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <p>Failed to load songs</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function renderAdminSongs() {
+        if (!adminSongList) return;
+
+        let filtered = adminCachedSongs;
+
+        if (adminSongFilter === "public") {
+            filtered = filtered.filter(s => !s.isPrivate);
+        } else if (adminSongFilter === "private") {
+            filtered = filtered.filter(s => s.isPrivate);
+        }
+
+        const q = adminSongSearchQuery.trim().toLowerCase();
+        if (q) {
+            filtered = filtered.filter(s => {
+                const title = (s.title || "").toLowerCase();
+                const artist = (s.artist || "").toLowerCase();
+                const album = (s.album || "").toLowerCase();
+                const uploaderName = (s.uploadedBy?.name || "").toLowerCase();
+                const uploaderEmail = (s.uploadedBy?.email || "").toLowerCase();
+                return title.includes(q) || artist.includes(q) || album.includes(q) || uploaderName.includes(q) || uploaderEmail.includes(q);
+            });
+        }
+
+        if (filtered.length === 0) {
+            adminSongList.innerHTML = `
+                <div class="admin-empty-state">
+                    <i class="fa-solid fa-music-slash"></i>
+                    <p>No songs found matching current criteria</p>
+                </div>
+            `;
+            return;
+        }
+
+        adminSongList.innerHTML = filtered.map(s => {
+            const cover = s.coverUrl || DEFAULT_COVER;
+            const uploader = s.uploadedBy 
+                ? `<strong>${escapeHtml(s.uploadedBy.name)}</strong>${s.uploadedBy.isAdmin ? ' <span class="tag-admin-uploader">Admin</span>' : ""}`
+                : '<span class="text-muted">Platform Catalog</span>';
+            const typeBadge = s.isPrivate 
+                ? '<span class="vis-badge private"><i class="fa-solid fa-lock"></i> Private</span>' 
+                : '<span class="vis-badge public"><i class="fa-solid fa-globe"></i> Public</span>';
+
+            const isCurrentPlaying = Boolean(
+                state.currentTrackIndex !== -1 &&
+                TRACKS[state.currentTrackIndex] &&
+                String(TRACKS[state.currentTrackIndex].id) === String(s.id) &&
+                state.isPlaying
+            );
+
+            // Admins CANNOT delete private songs. Show protected badge for private songs.
+            const actionContent = s.isPrivate
+                ? '<span class="badge-protected-song" title="Private vault songs are protected and cannot be deleted by admin"><i class="fa-solid fa-lock"></i> Protected</span>'
+                : `<button type="button" class="btn-delete-song" data-song-id="${escapeHtml(s.id)}" title="Delete Song Permanently">
+                       <i class="fa-solid fa-trash-can"></i>
+                       <span>Delete</span>
+                   </button>`;
+
+            return `
+                <div class="admin-song-row ${isCurrentPlaying ? "is-active-playing" : ""}" data-song-id="${escapeHtml(s.id)}">
+                    <div class="col-cover">
+                        <img src="${escapeHtml(cover)}" alt="Cover" class="admin-song-thumb" onerror="this.src='${DEFAULT_COVER}'">
+                        <button type="button" class="admin-play-preview-btn" data-song-id="${escapeHtml(s.id)}" title="${isCurrentPlaying ? 'Pause Preview' : 'Play / Preview Track'}">
+                            <i class="fa-solid ${isCurrentPlaying ? 'fa-pause' : 'fa-play'}"></i>
+                        </button>
+                    </div>
+                    <div class="col-title song-title-wrap">
+                        <span class="song-main-title" data-song-id="${escapeHtml(s.id)}" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
+                        <span class="song-sub-artist" title="${escapeHtml(s.artist)}">${escapeHtml(s.artist)}</span>
+                    </div>
+                    <div class="col-album song-album-txt" title="${escapeHtml(s.album || 'Sound Pulse')}">${escapeHtml(s.album || "Sound Pulse")}</div>
+                    <div class="col-duration song-duration-txt">${escapeHtml(s.duration || "--:--")}</div>
+                    <div class="col-type">${typeBadge}</div>
+                    <div class="col-uploader uploader-chip">${uploader}</div>
+                    <div class="col-actions">${actionContent}</div>
+                </div>
+            `;
+        }).join("");
+
+        adminSongList.querySelectorAll(".btn-delete-song").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                openDeleteSongConfirm(btn.dataset.songId);
+            });
+        });
+
+        function handlePreviewSong(songId) {
+            const currentTrack = TRACKS[state.currentTrackIndex];
+            if (currentTrack && String(currentTrack.id) === String(songId) && audio.src) {
+                togglePlayPause();
+                renderAdminSongs();
+                return;
+            }
+            let trackIdx = TRACKS.findIndex(t => String(t.id) === String(songId));
+            if (trackIdx !== -1) {
+                loadTrack(trackIdx, true);
+                renderAdminSongs();
+                return;
+            }
+            const s = adminCachedSongs.find(item => String(item.id) === String(songId));
+            if (!s || !s.audioUrl) {
+                showToast("Audio source unavailable for preview", "fa-triangle-exclamation");
+                return;
+            }
+            const previewTrack = {
+                id: s.id,
+                title: s.title,
+                artist: s.artist,
+                album: s.album || "Sound Pulse",
+                duration: s.duration || "--:--",
+                cover: s.coverUrl || DEFAULT_COVER,
+                src: s.audioUrl,
+                liked: false,
+                isLocal: Boolean(s.isPrivate)
+            };
+            TRACKS.push(previewTrack);
+            loadTrack(TRACKS.length - 1, true);
+            renderAdminSongs();
+        }
+
+        adminSongList.querySelectorAll(".admin-play-preview-btn, .song-main-title").forEach(el => {
+            el.addEventListener("click", (e) => {
+                e.stopPropagation();
+                handlePreviewSong(el.dataset.songId);
+            });
+        });
+    }
+
+    async function loadAdminUsers() {
+        if (!isLoggedIn() || !isAdmin) return;
+        try {
+            if (adminUserList) {
+                adminUserList.innerHTML = `
+                    <div class="admin-empty-state">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <p>Loading users...</p>
+                    </div>
+                `;
+            }
+            const res = await api(`/admin/users?userId=${encodeURIComponent(currentUserId)}`);
+            adminCachedUsers = Array.isArray(res?.users) ? res.users : [];
+            if (adminTabUsersBadge) adminTabUsersBadge.textContent = adminCachedUsers.length;
+            renderAdminUsers();
+        } catch (err) {
+            console.error("loadAdminUsers error:", err);
+            if (adminUserList) {
+                adminUserList.innerHTML = `
+                    <div class="admin-empty-state">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <p>Failed to load users</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function renderAdminUsers() {
+        if (!adminUserList) return;
+
+        let filtered = adminCachedUsers;
+        const q = adminUserSearchQuery.trim().toLowerCase();
+        if (q) {
+            filtered = filtered.filter(u => {
+                const name = (u.name || "").toLowerCase();
+                const email = (u.email || "").toLowerCase();
+                const role = u.isAdmin ? "admin" : "listener";
+                return name.includes(q) || email.includes(q) || role.includes(q);
+            });
+        }
+
+        if (filtered.length === 0) {
+            adminUserList.innerHTML = `
+                <div class="admin-empty-state">
+                    <i class="fa-solid fa-user-slash"></i>
+                    <p>No users found matching current criteria</p>
+                </div>
+            `;
+            return;
+        }
+
+        adminUserList.innerHTML = filtered.map(u => {
+            const avatar = u.avatarUrl || DEFAULT_AVATAR;
+            const joinedDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : "--";
+            const roleBadge = u.isAdmin 
+                ? '<span class="admin-user-badge badge-admin"><i class="fa-solid fa-shield-halved"></i> Admin</span>' 
+                : '<span class="admin-user-badge badge-listener"><i class="fa-solid fa-headphones"></i> Listener</span>';
+            const verifiedBadge = u.isEmailVerified 
+                ? '<span class="admin-verified-tag verified"><i class="fa-solid fa-circle-check"></i> Verified</span>' 
+                : '<span class="admin-verified-tag unverified"><i class="fa-solid fa-circle-xmark"></i> Pending</span>';
+
+            return `
+                <div class="admin-user-row" data-user-id="${escapeHtml(u.id)}">
+                    <div class="col-user-avatar">
+                        <img src="${escapeHtml(avatar)}" alt="Avatar" class="admin-user-avatar" onerror="this.src='${DEFAULT_AVATAR}'">
+                    </div>
+                    <div class="col-user-name">
+                        <span class="user-cell-name" title="${escapeHtml(u.name)}">${escapeHtml(u.name)}</span>
+                    </div>
+                    <div class="col-user-email">
+                        <span class="user-cell-email" title="${escapeHtml(u.email)}">${escapeHtml(u.email)}</span>
+                    </div>
+                    <div class="col-user-role">${roleBadge}</div>
+                    <div class="col-user-status">${verifiedBadge}</div>
+                    <div class="col-user-joined">
+                        <span class="user-joined-date">${joinedDate}</span>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    function openDeleteSongConfirm(songOrId) {
+        if (!isLoggedIn() || !isAdmin) {
+            showToast("Access restricted to administrators", "fa-shield-halved");
+            return;
+        }
+
+        let song = null;
+        if (typeof songOrId === "object" && songOrId !== null) {
+            song = songOrId;
+        } else {
+            const idStr = String(songOrId);
+            song = adminCachedSongs.find(s => String(s.id) === idStr) ||
+                   TRACKS.find(t => String(t.id) === idStr);
+        }
+
+        if (!song) {
+            showToast("Song not found", "fa-triangle-exclamation");
+            return;
+        }
+
+        // Admins cannot delete private songs
+        if (song.isPrivate || song.isLocal) {
+            showToast("Admin cannot delete private vault songs", "fa-shield-halved");
+            return;
+        }
+
+        pendingDeleteSongId = String(song.id);
+
+        if (deleteConfirmCover) {
+            deleteConfirmCover.src = song.coverUrl || song.cover || DEFAULT_COVER;
+        }
+        if (deleteConfirmTitle) {
+            deleteConfirmTitle.textContent = song.title || "Untitled Track";
+        }
+        if (deleteConfirmArtist) {
+            deleteConfirmArtist.textContent = song.artist || "Unknown Artist";
+        }
+        if (deleteConfirmType) {
+            deleteConfirmType.textContent = "Public Platform Catalog";
+        }
+
+        adminDeleteConfirmModal?.classList.add("active");
+    }
+
+    function closeDeleteConfirmModal() {
+        pendingDeleteSongId = null;
+        adminDeleteConfirmModal?.classList.remove("active");
+    }
+
+    async function executeDeleteSong() {
+        if (!pendingDeleteSongId) return;
+        const songIdToDelete = pendingDeleteSongId;
+
+        if (confirmDeleteSongBtn) {
+            confirmDeleteSongBtn.disabled = true;
+            confirmDeleteSongBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting...';
+        }
+
+        try {
+            const res = await api(`/songs/${songIdToDelete}?userId=${encodeURIComponent(currentUserId)}`, {
+                method: "DELETE"
+            });
+
+            showToast(res.message || "Song permanently deleted", "fa-trash-can");
+            closeDeleteConfirmModal();
+
+            // 1. Remove from adminCachedSongs
+            adminCachedSongs = adminCachedSongs.filter(s => String(s.id) !== songIdToDelete);
+            updateSongFilterCounts();
+            renderAdminSongs();
+
+            // 2. Remove from TRACKS array
+            const trackIdx = TRACKS.findIndex(t => String(t.id) === songIdToDelete);
+            const wasCurrentTrack = (trackIdx === state.currentTrackIndex && trackIdx !== -1);
+
+            if (trackIdx !== -1) {
+                TRACKS.splice(trackIdx, 1);
+            }
+
+            // 3. Remove from queue
+            state.queue = state.queue.filter(id => String(id) !== songIdToDelete);
+
+            // 4. Remove from playlists
+            playlists.forEach(pl => {
+                if (Array.isArray(pl.trackIds)) {
+                    pl.trackIds = pl.trackIds.filter(id => String(id) !== songIdToDelete);
+                }
+            });
+
+            // 5. Handle current playback if deleted track was active
+            if (wasCurrentTrack) {
+                if (TRACKS.length > 0) {
+                    if (state.currentTrackIndex >= TRACKS.length) {
+                        state.currentTrackIndex = 0;
+                    }
+                    loadTrack(state.currentTrackIndex, state.isPlaying);
+                } else {
+                    audio.pause();
+                    audio.src = "";
+                    state.isPlaying = false;
+                    state.currentTrackIndex = -1;
+                    syncPlayPauseUI();
+                    resetProgressUI();
+                    currentTitle.textContent = "No Track Selected";
+                    currentArtist.textContent = "Choose a song to play";
+                    currentCover.src = DEFAULT_COVER;
+                }
+            } else if (trackIdx !== -1 && trackIdx < state.currentTrackIndex) {
+                state.currentTrackIndex = Math.max(0, state.currentTrackIndex - 1);
+            }
+
+            // 6. Update Library lists (liked, recents)
+            state.likedSongs = state.likedSongs.filter(id => String(id) !== songIdToDelete);
+            state.recentHistory = state.recentHistory.filter(id => String(id) !== songIdToDelete);
+
+            // 7. Re-render UI components
+            renderTrackList();
+            renderHomeSections();
+            renderQueue();
+            renderSidebarPlaylists();
+            updateBadgeCounts();
+
+            // 8. Refresh stats in background
+            loadAdminStats();
+
+        } catch (err) {
+            console.error("executeDeleteSong error:", err);
+            showToast(err.message || "Failed to delete song", "fa-triangle-exclamation");
+        } finally {
+            if (confirmDeleteSongBtn) {
+                confirmDeleteSongBtn.disabled = false;
+                confirmDeleteSongBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Delete Permanently';
+            }
+        }
+    }
+
+    // Attach Admin UI Event Listeners
+    headerAdminBtn?.addEventListener("click", openAdminHubModal);
+    navAdmin?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openAdminHubModal();
+    });
+    cardAdminBtn?.addEventListener("click", openAdminHubModal);
+    closeAdminModalBtn?.addEventListener("click", closeAdminHubModal);
+    adminRefreshBtn?.addEventListener("click", () => {
+        loadAdminStats(true);
+        loadAdminSongs();
+        loadAdminUsers();
+    });
+
+    adminTabSongs?.addEventListener("click", () => {
+        adminTabSongs.classList.add("active");
+        adminTabUsers?.classList.remove("active");
+        adminSongsPane?.classList.add("active");
+        adminUsersPane?.classList.remove("active");
+        if (adminSongsPane) adminSongsPane.style.display = "";
+        if (adminUsersPane) adminUsersPane.style.display = "";
+    });
+
+    adminTabUsers?.addEventListener("click", () => {
+        adminTabUsers.classList.add("active");
+        adminTabSongs?.classList.remove("active");
+        adminUsersPane?.classList.add("active");
+        adminSongsPane?.classList.remove("active");
+        if (adminUsersPane) adminUsersPane.style.display = "";
+        if (adminSongsPane) adminSongsPane.style.display = "";
+    });
+
+    adminSongSearchInput?.addEventListener("input", (e) => {
+        adminSongSearchQuery = e.target.value;
+        if (adminSongSearchClear) {
+            adminSongSearchClear.style.display = adminSongSearchQuery ? "flex" : "none";
+        }
+        renderAdminSongs();
+    });
+
+    adminSongSearchClear?.addEventListener("click", () => {
+        if (adminSongSearchInput) adminSongSearchInput.value = "";
+        adminSongSearchQuery = "";
+        adminSongSearchClear.style.display = "none";
+        renderAdminSongs();
+        adminSongSearchInput?.focus();
+    });
+
+    adminSongFilterPills?.querySelectorAll(".admin-filter-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            adminSongFilterPills.querySelectorAll(".admin-filter-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            adminSongFilter = pill.dataset.filter || "all";
+            renderAdminSongs();
+        });
+    });
+
+    const adminUserSearchClear = document.getElementById("adminUserSearchClear");
+    adminUserSearchInput?.addEventListener("input", (e) => {
+        adminUserSearchQuery = e.target.value;
+        if (adminUserSearchClear) {
+            adminUserSearchClear.style.display = adminUserSearchQuery ? "flex" : "none";
+        }
+        renderAdminUsers();
+    });
+
+    adminUserSearchClear?.addEventListener("click", () => {
+        if (adminUserSearchInput) adminUserSearchInput.value = "";
+        adminUserSearchQuery = "";
+        adminUserSearchClear.style.display = "none";
+        renderAdminUsers();
+        adminUserSearchInput?.focus();
+    });
+
+    // Interactive metric subpills
+    adminStatPublicSongs?.addEventListener("click", () => {
+        adminTabSongs?.click();
+        const pill = adminSongFilterPills?.querySelector('[data-filter="public"]');
+        if (pill) pill.click();
+    });
+    adminStatPrivateSongs?.addEventListener("click", () => {
+        adminTabSongs?.click();
+        const pill = adminSongFilterPills?.querySelector('[data-filter="private"]');
+        if (pill) pill.click();
+    });
+    adminStatAdminUsers?.addEventListener("click", () => {
+        adminTabUsers?.click();
+    });
+    adminStatRegularUsers?.addEventListener("click", () => {
+        adminTabUsers?.click();
+    });
+
+    closeDeleteConfirmModalBtn?.addEventListener("click", closeDeleteConfirmModal);
+    cancelDeleteSongBtn?.addEventListener("click", closeDeleteConfirmModal);
+    confirmDeleteSongBtn?.addEventListener("click", executeDeleteSong);
+
     // Dismiss popovers on outside click
     document.addEventListener("click", (e) => {
         if (!e.target.closest("#trackContextMenu") && !e.target.closest(".btn-row-more")) {
             closeTrackContextMenu();
         }
-        if (!e.target.closest("#speedPopover") && !e.target.closest("#speedBtn")) {
+        if (!e.target.closest("#speedPopover") && !e.target.closest("#speedBtn") && !e.target.closest("#sheetSpeedBtn")) {
             document.getElementById("speedPopover")?.classList.remove("active");
         }
     });
 
     document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && changePasswordModal?.classList.contains("active")) {
-            closeChangePasswordModal();
-            return;
-        }
-
-        if (["input", "textarea"].includes(document.activeElement?.tagName.toLowerCase())) return;
-
         if (e.key === "Escape") {
+            const anyOpenOverlay = Boolean(
+                coverExpandedModal?.classList.contains("active") ||
+                uploadSongModal?.classList.contains("active") ||
+                createPlaylistModal?.classList.contains("active") ||
+                editPlaylistModal?.classList.contains("active") ||
+                changePasswordModal?.classList.contains("active") ||
+                adminHubModal?.classList.contains("active") ||
+                adminDeleteConfirmModal?.classList.contains("active") ||
+                document.getElementById("sleepTimerModal")?.classList.contains("active") ||
+                document.getElementById("shortcutsModal")?.classList.contains("active") ||
+                addToPlaylistModal?.classList.contains("active") ||
+                selectSongsModal?.classList.contains("active") ||
+                queuePanel?.classList.contains("open") ||
+                userInfoCard?.classList.contains("open") ||
+                sidebar?.classList.contains("open") ||
+                mobileSheet?.classList.contains("active") ||
+                document.getElementById("speedPopover")?.classList.contains("active")
+            );
+
+            closeAdminHubModal();
+            closeDeleteConfirmModal();
             closeEnlargedCover();
             closeUploadModal();
             closeCreatePlaylistModal();
@@ -2947,21 +4038,42 @@ document.addEventListener("DOMContentLoaded", async () => {
             closeSleepTimerModal();
             closeShortcutsModal();
             closeTrackContextMenu();
+            closeDrawer();
+            closeSheet();
             document.getElementById("speedPopover")?.classList.remove("active");
             addToPlaylistModal?.classList.remove("active");
             selectSongsModal?.classList.remove("active");
             queuePanel?.classList.remove("open");
             userInfoCard?.classList.remove("open");
             userProfileBtn?.classList.remove("active");
-        } else if (e.code === "Space") {
+
+            if (!anyOpenOverlay && document.activeElement?.id === "searchInput") {
+                if (searchInputEl?.value) {
+                    clearSearchQuery();
+                } else {
+                    searchInputEl?.blur();
+                }
+            }
+            return;
+        }
+
+        if (["input", "textarea"].includes(document.activeElement?.tagName.toLowerCase())) return;
+
+        if (e.code === "Space") {
             e.preventDefault();
             togglePlayPause();
         } else if (e.code === "ArrowRight") {
             e.preventDefault();
-            audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
+            if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+                audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
+                syncProgressUI();
+            }
         } else if (e.code === "ArrowLeft") {
             e.preventDefault();
-            audio.currentTime = Math.max(0, audio.currentTime - 5);
+            if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+                audio.currentTime = Math.max(0, audio.currentTime - 5);
+                syncProgressUI();
+            }
         } else if (e.code === "ArrowUp") {
             e.preventDefault();
             setVolume(state.volume + 0.05);
@@ -2974,6 +4086,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             toggleShuffle();
         } else if (e.key.toLowerCase() === "r") {
             toggleRepeat();
+        } else if (e.key.toLowerCase() === "q") {
+            e.preventDefault();
+            toggleQueue();
         } else if (e.key === "?") {
             openShortcutsModal();
         }
@@ -2995,7 +4110,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const data = await api(`/playlists/${sharedPlId}`);
             
             // Map the populated songs and push to TRACKS if they don't exist
-            const mappedTracks = data.songs.map(mapSong);
+            const mappedTracks = (data.songs || []).filter(Boolean).map(mapSong);
             mappedTracks.forEach(mt => {
                 if (!TRACKS.find(t => String(t.id) === String(mt.id))) {
                     TRACKS.push(mt);
@@ -3004,14 +4119,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             
             const sharedPl = {
                 id: String(data._id),
-                name: data.name,
+                name: data.name || "Untitled Playlist",
                 description: data.description || "",
                 isPrivate: data.isPrivate !== false,
                 coverUrl: data.coverUrl || "",
                 trackIds: mappedTracks.map(t => String(t.id)),
-                isOwned: isLoggedIn() && currentUserId === String(data.user._id),
-                creatorName: data.user.name,
-                creatorAvatar: data.user.avatarUrl
+                isOwned: Boolean(isLoggedIn() && data.user?._id && currentUserId === String(data.user._id)),
+                creatorName: data.user?.name || "Sound Pulse Listener",
+                creatorAvatar: data.user?.avatarUrl || ""
             };
             
             if (!playlists.find(p => p.id === sharedPl.id)) {

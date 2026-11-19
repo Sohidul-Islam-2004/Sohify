@@ -78,6 +78,29 @@
           <h2>Welcome Back</h2>
           <p class="subtitle">Log in to continue your sound stream.</p>
 
+          <!-- ACTIVE 30-DAY SESSION BANNER -->
+          <div id="sessionResumeBanner" class="session-resume-banner" style="display: none;">
+            <div class="session-resume-info">
+              <i class="fa-solid fa-circle-check"></i>
+              <div>
+                <strong>30-day session active</strong>
+                <span id="sessionResumeText">Signed in</span>
+              </div>
+            </div>
+            <div class="session-resume-actions">
+              <a href="/Dashboard" id="sessionResumeContinue" class="session-continue-btn">
+                <span>Continue</span>
+                <i class="fa-solid fa-arrow-right"></i>
+              </a>
+              <button type="button" id="sessionDismissBtn" class="session-switch-btn">
+                Use another account
+              </button>
+            </div>
+          </div>
+
+          <!-- INLINE STATUS BANNER (e.g. Password reset complete) -->
+          <div id="loginStatusAlert" class="login-status-alert" style="display: none;"></div>
+
           <form id="loginForm">
             <div class="input-group">
               <label for="email">Email Address</label>
@@ -104,11 +127,13 @@
                   id="password"
                   name="password"
                   placeholder="Enter your password"
+                  autocomplete="current-password"
                   required
                 />
                 <button
                   type="button"
                   class="toggle-btn"
+                  aria-label="Show or hide password"
                   onclick="togglePasswordVisibility('password', this)"
                 >
                   <i class="fa-solid fa-eye"></i>
@@ -118,10 +143,13 @@
             </div>
 
             <div class="form-actions">
-              <label class="checkbox-label">
-                <input type="checkbox" id="remember" /> Remember me
+              <label class="checkbox-label" for="remember">
+                <input type="checkbox" id="remember" />
+                <span>Remember me for 30 days</span>
               </label>
-              <a href="#" class="accent-link">Forgot password?</a>
+              <button type="button" id="forgotPasswordBtn" class="accent-link link-btn">
+                Forgot password?
+              </button>
             </div>
 
             <button type="submit" class="submit-btn">
@@ -140,6 +168,184 @@
           </p>
         </div>
       </main>
+    </div>
+
+    <!-- FORGOT PASSWORD 3-STEP MODAL -->
+    <div
+      class="fp-modal-overlay"
+      id="forgotPasswordModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="fpModalTitle"
+      aria-hidden="true"
+    >
+      <div class="fp-modal-box">
+        <div class="fp-modal-header">
+          <div class="fp-modal-title-wrap">
+            <span class="fp-modal-icon">
+              <i class="fa-solid fa-key"></i>
+            </span>
+            <div>
+              <h3 id="fpModalTitle">Reset Password</h3>
+              <p class="fp-modal-sub">Verify your email to set a new password</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="fp-modal-close"
+            id="fpCloseModalBtn"
+            aria-label="Close Reset Password"
+          >
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="fp-steps">
+          <div class="fp-step active" id="fpStepBadge1">
+            <span class="fp-step-num">1</span>
+            <span>Email</span>
+          </div>
+          <div class="fp-step-line" id="fpStepLine1"></div>
+          <div class="fp-step" id="fpStepBadge2">
+            <span class="fp-step-num">2</span>
+            <span>Verify Code</span>
+          </div>
+          <div class="fp-step-line" id="fpStepLine2"></div>
+          <div class="fp-step" id="fpStepBadge3">
+            <span class="fp-step-num">3</span>
+            <span>New Pass</span>
+          </div>
+        </div>
+
+        <div class="fp-modal-body">
+          <div id="fpAlertBanner" class="fp-alert" style="display: none;"></div>
+
+          <!-- STEP 1: ENTER EMAIL -->
+          <form id="fpStepEmailForm">
+            <p class="fp-helper-text">
+              Enter the email address for your Sound Pulse account. We will send a 6-digit password reset code to your inbox.
+            </p>
+            <div class="input-group">
+              <label for="fpEmail">Account Email Address</label>
+              <div class="input-with-icon">
+                <i class="fa-solid fa-envelope"></i>
+                <input
+                  type="email"
+                  id="fpEmail"
+                  placeholder="name@example.com"
+                  autocomplete="email"
+                  required
+                />
+              </div>
+              <span class="error-message" id="fpEmailError"></span>
+            </div>
+            <button type="submit" class="submit-btn" id="fpSendCodeBtn">
+              <i class="fa-solid fa-paper-plane"></i>
+              <span>Send Reset Code</span>
+            </button>
+          </form>
+
+          <!-- STEP 2: ENTER 6-DIGIT CODE -->
+          <form id="fpStepCodeForm" style="display: none;">
+            <p class="fp-helper-text">
+              Enter the 6-digit code sent to
+              <span class="fp-target-email" id="fpTargetEmail">name@example.com</span>
+            </p>
+
+            <div class="input-group">
+              <label>6-Digit Verification Code</label>
+              <div class="otp-container" id="fpOtpContainer">
+                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit fp-otp-digit" data-index="0" autocomplete="one-time-code" required />
+                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit fp-otp-digit" data-index="1" required />
+                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit fp-otp-digit" data-index="2" required />
+                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit fp-otp-digit" data-index="3" required />
+                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit fp-otp-digit" data-index="4" required />
+                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-digit fp-otp-digit" data-index="5" required />
+              </div>
+              <span class="error-message" id="fpCodeError"></span>
+            </div>
+
+            <button type="submit" class="submit-btn" id="fpVerifyCodeBtn">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Verify Reset Code</span>
+            </button>
+
+            <div class="fp-code-actions">
+              <p class="fp-resend-text">
+                Didn't receive the email?
+                <button type="button" id="fpResendBtn" class="fp-resend-btn" disabled>
+                  Resend (<span id="fpResendCountdown">45</span>s)
+                </button>
+              </p>
+              <button type="button" id="fpBackToEmailBtn" class="fp-back-btn">
+                <i class="fa-solid fa-arrow-left"></i> Change Email
+              </button>
+            </div>
+          </form>
+
+          <!-- STEP 3: NEW PASSWORD -->
+          <form id="fpStepNewPassForm" style="display: none;">
+            <div class="fp-verified-pill">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>Verified for <strong id="fpVerifiedEmailText">account</strong></span>
+            </div>
+
+            <div class="input-group">
+              <label for="fpNewPassword">New Password</label>
+              <div class="password-wrapper">
+                <i class="fa-solid fa-lock input-icon-left"></i>
+                <input
+                  type="password"
+                  id="fpNewPassword"
+                  placeholder="At least 8 characters"
+                  autocomplete="new-password"
+                  required
+                />
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  aria-label="Show or hide new password"
+                  onclick="togglePasswordVisibility('fpNewPassword', this)"
+                >
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+              <div class="strength-meter" id="fpStrengthMeter">
+                <span></span><span></span><span></span><span></span>
+              </div>
+              <span class="error-message" id="fpNewPasswordError"></span>
+            </div>
+
+            <div class="input-group">
+              <label for="fpConfirmPassword">Confirm New Password</label>
+              <div class="password-wrapper">
+                <i class="fa-solid fa-lock input-icon-left"></i>
+                <input
+                  type="password"
+                  id="fpConfirmPassword"
+                  placeholder="Re-enter new password"
+                  autocomplete="new-password"
+                  required
+                />
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  aria-label="Show or hide confirm password"
+                  onclick="togglePasswordVisibility('fpConfirmPassword', this)"
+                >
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+              <span class="error-message" id="fpConfirmPasswordError"></span>
+            </div>
+
+            <button type="submit" class="submit-btn" id="fpResetSubmitBtn">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>Update Password</span>
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
 
     <script src="/Login/script.js"></script>

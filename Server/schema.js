@@ -64,9 +64,23 @@ const emailVerificationSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+const passwordResetSchema = new mongoose.Schema(
+    {
+        email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+        code: { type: String, required: true },
+        attempts: { type: Number, default: 0 },
+        verified: { type: Boolean, default: false },
+        resetToken: { type: String, default: "" },
+        lastSentAt: { type: Date, default: Date.now },
+        createdAt: { type: Date, default: Date.now, expires: 900 } // TTL index: expires in 15 minutes
+    },
+    { timestamps: true }
+);
+
 module.exports = {
     userSchema,
     songSchema,
     playlistSchema,
-    emailVerificationSchema
+    emailVerificationSchema,
+    passwordResetSchema
 };
