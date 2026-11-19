@@ -3,116 +3,73 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#030014" />
+    <meta name="description" content="Create your free Sohify account and start streaming." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Sign Up – Sound Pulse</title>
+    <title>Sign Up – Sohify</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="/Sign-Up/style.css" />
   </head>
 
   <body>
-    <!-- COSMIC GRID, STARFIELD & HORIZON AURORA -->
-    <div class="cyber-grid" aria-hidden="true"></div>
-    <div class="cosmic-stars" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
-    <div class="cosmic-horizon" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
 
-    <!-- AMBIENT ORBS -->
-    <div class="bg-orbs" aria-hidden="true">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
-
-    <!-- SIGN UP LAYOUT -->
     <div class="auth-layout">
-      <aside class="auth-visual">
+      <aside class="auth-visual" aria-hidden="true">
         <div class="vinyl-stage">
-          <div class="eclipse-ring eclipse-ring-outer" aria-hidden="true"></div>
-          <div class="eclipse-ring eclipse-ring-inner" aria-hidden="true"></div>
+          <div class="vinyl-ring"></div>
           <div class="vinyl">
-            <div class="vinyl-label">
-              <i class="fa-solid fa-compact-disc"></i>
-            </div>
-          </div>
-
-          <div class="feature-pills">
-            <span class="pill"
-              ><i class="fa-solid fa-infinity"></i> Unlimited</span
-            >
-            <span class="pill"><i class="fa-solid fa-wifi"></i> Offline</span>
-            <span class="pill"
-              ><i class="fa-solid fa-volume-high"></i> Hi-Fi</span
-            >
+            <div class="vinyl-label"><i class="fa-solid fa-headphones"></i></div>
           </div>
         </div>
-
+        <div class="feature-pills">
+          <span class="pill"><i class="fa-solid fa-music"></i> Free streaming</span>
+          <span class="pill"><i class="fa-solid fa-lock"></i> Private vault</span>
+          <span class="pill"><i class="fa-solid fa-list"></i> Your playlists</span>
+        </div>
         <div class="visual-caption">
           <h3>Stream. Discover. Repeat.</h3>
-          <p>Join 100M+ listeners sharing the beat.</p>
+          <p>Create a free account in under a minute.</p>
         </div>
       </aside>
 
       <main class="auth-panel">
         <div class="auth-container">
-          <a href="/" class="brand-mark">
+          <a href="/" class="brand-mark" aria-label="Sohify home">
             <span class="brand-icon" aria-hidden="true">
               <img src="/favicon.svg" alt="" class="brand-logo-svg" />
             </span>
-            <span class="brand-name">Sound <span class="neon-word">Pulse</span></span>
+            <span class="brand-name">Sohify</span>
           </a>
 
-          <!-- STEP 1: REGISTRATION FORM -->
-          <div id="signupStep">
-            <div class="music-badge">
-              <i class="fa-solid fa-wave-square"></i>
-              <span>New here? Let's tune you in.</span>
-            </div>
+          <!-- STEP 1: DETAILS -->
+          <section id="signupStep">
+            <h2>Create account</h2>
+            <p class="subtitle">Free forever. No credit card needed.</p>
 
-            <h2>Create Account</h2>
-            <p class="subtitle">
-              Start streaming millions of tracks — free forever.
-            </p>
+            <div class="form-alert" id="signupAlert" role="status" hidden></div>
 
-            <form id="signupForm">
+            <form id="signupForm" novalidate>
               <div class="input-group">
-                <label for="fullName">Full Name</label>
+                <label for="fullName">Full name</label>
                 <div class="input-with-icon">
                   <i class="fa-solid fa-user"></i>
-                  <input
-                    type="text"
-                    id="fullName"
-                    name="fullName"
-                    placeholder="Full name"
-                    autocomplete="name"
-                    required
-                  />
+                  <input type="text" id="fullName" name="fullName" placeholder="Your name" autocomplete="name" maxlength="60" required />
                 </div>
                 <span class="error-message" id="nameError"></span>
               </div>
 
               <div class="input-group">
-                <label for="email">Original Email Address</label>
+                <label for="email">Email address</label>
                 <div class="input-with-icon">
                   <i class="fa-solid fa-envelope"></i>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    placeholder="name@example.com"
-                    autocomplete="email"
-                    required
-                  />
+                  <input type="email" id="email" name="email" placeholder="name@example.com" autocomplete="email" required />
                 </div>
                 <span class="error-message" id="emailError"></span>
               </div>
@@ -121,260 +78,120 @@
                 <label for="password">Password</label>
                 <div class="password-wrapper">
                   <i class="fa-solid fa-lock input-icon-left"></i>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    placeholder="Create a strong password (min 8 chars)"
-                    autocomplete="new-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    class="toggle-btn"
-                    onclick="togglePasswordVisibility('password', this)"
-                  >
+                  <input type="password" id="password" name="password" placeholder="At least 8 characters" autocomplete="new-password" required />
+                  <button type="button" class="toggle-btn" data-toggle="password" aria-label="Show password">
                     <i class="fa-solid fa-eye"></i>
                   </button>
                 </div>
-                <div class="strength-meter" id="strengthMeter">
-                  <span></span><span></span><span></span><span></span>
-                </div>
+                <div class="strength-meter" id="strengthMeter" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
                 <span class="error-message" id="passwordError"></span>
               </div>
 
               <div class="input-group">
-                <label for="confirmPassword">Confirm Password</label>
+                <label for="confirmPassword">Confirm password</label>
                 <div class="password-wrapper">
                   <i class="fa-solid fa-lock input-icon-left"></i>
-                  <input
-                    type="password"
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    placeholder="Re-enter your password"
-                    autocomplete="new-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    class="toggle-btn"
-                    onclick="togglePasswordVisibility('confirmPassword', this)"
-                  >
+                  <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Re-enter your password" autocomplete="new-password" required />
+                  <button type="button" class="toggle-btn" data-toggle="confirmPassword" aria-label="Show password">
                     <i class="fa-solid fa-eye"></i>
                   </button>
                 </div>
                 <span class="error-message" id="confirmPasswordError"></span>
               </div>
 
-              <div class="form-actions terms-actions">
+              <div class="terms-row">
                 <label class="checkbox-label" for="terms">
                   <input type="checkbox" id="terms" name="acceptedTerms" />
-                  <span>
-                    I agree to the
-                    <a href="/Terms" id="openTermsLink" class="accent-link">Terms &amp; Conditions</a>
-                  </span>
+                  <span>I agree to the <a href="/Terms" id="openTermsLink" class="accent-link">Terms &amp; Conditions</a></span>
                 </label>
-                <span class="error-message terms-error" id="termsError"></span>
+                <span class="error-message" id="termsError"></span>
               </div>
 
               <button type="submit" class="submit-btn" id="signupSubmitBtn">
-                <i class="fa-solid fa-paper-plane"></i>
-                <span>Send Confirmation Code</span>
+                <span>Continue</span>
               </button>
             </form>
 
-            <p class="switch-prompt">
-              Already have an account? <a href="/Login/">Sign in</a>
-            </p>
-          </div>
+            <p class="switch-prompt">Already have an account? <a href="/Login">Sign in</a></p>
+          </section>
 
-          <!-- STEP 2: EMAIL OTP CONFIRMATION -->
-          <div id="verifyStep" style="display: none;">
-            <div class="music-badge verification-badge">
-              <i class="fa-solid fa-shield-halved"></i>
-              <span>Email Confirmation</span>
-            </div>
-
-            <h2>Confirm Your Email</h2>
+          <!-- STEP 2: EMAIL CODE -->
+          <section id="verifyStep" hidden>
+            <button type="button" class="back-btn" id="backToSignupBtn"><i class="fa-solid fa-arrow-left"></i> Edit details</button>
+            <h2>Confirm your email</h2>
             <p class="subtitle">
-              We sent a 6-digit confirmation code to:
-              <span class="verify-target-email" id="verifyTargetEmail">your@email.com</span>
+              We sent a 6-digit code to
+              <span class="target-email" id="verifyTargetEmail"></span>
             </p>
 
-            <div id="verifyAlert" class="verify-alert" style="display: none;"></div>
+            <div class="form-alert" id="verifyAlert" role="status" hidden></div>
 
-            <form id="verifyForm">
+            <form id="verifyForm" novalidate>
               <div class="input-group">
-                <label>Enter 6-Digit Code</label>
-                <div class="otp-container" id="otpContainer">
-                  <input
-                    type="text"
-                    maxlength="1"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    class="otp-digit"
-                    data-index="0"
-                    autocomplete="one-time-code"
-                    required
-                  />
-                  <input
-                    type="text"
-                    maxlength="1"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    class="otp-digit"
-                    data-index="1"
-                    required
-                  />
-                  <input
-                    type="text"
-                    maxlength="1"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    class="otp-digit"
-                    data-index="2"
-                    required
-                  />
-                  <input
-                    type="text"
-                    maxlength="1"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    class="otp-digit"
-                    data-index="3"
-                    required
-                  />
-                  <input
-                    type="text"
-                    maxlength="1"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    class="otp-digit"
-                    data-index="4"
-                    required
-                  />
-                  <input
-                    type="text"
-                    maxlength="1"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    class="otp-digit"
-                    data-index="5"
-                    required
-                  />
+                <label id="otpLabel">Enter the 6-digit code</label>
+                <div class="otp-container" role="group" aria-labelledby="otpLabel">
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" autocomplete="one-time-code" aria-label="Digit 1" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 2" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 3" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 4" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 5" />
+                  <input type="text" maxlength="1" inputmode="numeric" class="otp-digit" aria-label="Digit 6" />
                 </div>
-                <span class="error-message" id="verifyError"></span>
+                <span class="error-message center" id="verifyError"></span>
               </div>
 
               <button type="submit" class="submit-btn" id="verifySubmitBtn">
-                <i class="fa-solid fa-circle-check"></i>
-                <span>Confirm &amp; Activate Account</span>
+                <span>Create my account</span>
               </button>
             </form>
 
-            <div class="verify-actions">
-              <p class="resend-text">
-                Didn't get the code?
-                <button type="button" id="resendCodeBtn" class="resend-btn" disabled>
-                  Resend (<span id="resendCountdown">45</span>s)
-                </button>
-              </p>
-              <button type="button" id="backToSignupBtn" class="change-email-btn">
-                <i class="fa-solid fa-arrow-left"></i> Change Email / Edit Details
-              </button>
-            </div>
-          </div>
+            <p class="resend-text">
+              Didn't get it? Check spam, or
+              <button type="button" id="resendCodeBtn" class="link-btn" disabled>resend in <span id="resendCountdown">45</span>s</button>
+            </p>
+          </section>
         </div>
       </main>
     </div>
 
-    <!-- TERMS & CONDITIONS PREVIEW MODAL -->
-    <div
-      class="terms-modal-overlay"
-      id="termsModal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="termsModalTitle"
-      aria-hidden="true"
-    >
+    <!-- TERMS PREVIEW MODAL -->
+    <div class="terms-modal-overlay" id="termsModal" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle" hidden>
       <div class="terms-modal-box">
         <div class="terms-modal-header">
-          <div class="terms-modal-title-wrap">
-            <span class="terms-modal-icon">
-              <i class="fa-solid fa-file-contract"></i>
-            </span>
-            <div>
-              <h3 id="termsModalTitle">Terms &amp; Conditions</h3>
-              <p class="terms-modal-sub">Sound Pulse Legal Summary · Effective Nov 10, 2026</p>
-            </div>
+          <div>
+            <h3 id="termsModalTitle">Terms &amp; Conditions</h3>
+            <p class="terms-modal-sub">Summary · Effective November 10, 2026</p>
           </div>
-          <button
-            type="button"
-            class="terms-modal-close"
-            id="closeTermsModalBtn"
-            aria-label="Close Terms & Conditions"
-          >
+          <button type="button" class="terms-modal-close" id="closeTermsModalBtn" aria-label="Close">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
 
         <div class="terms-modal-body">
           <div class="terms-summary-block">
-            <h4><i class="fa-solid fa-user-check"></i> 1. Eligibility &amp; Acceptance</h4>
-            <p>
-              You must be at least 13 years old (or hold guardian consent if under
-              18). Checking &ldquo;I agree to the Terms &amp; Conditions&rdquo;
-              creates a binding agreement when using Sound Pulse.
-            </p>
+            <h4>1. Eligibility</h4>
+            <p>You must be at least 13 (or the minimum age in your country). Under 18? You need a parent or guardian's consent.</p>
           </div>
-
           <div class="terms-summary-block">
-            <h4><i class="fa-solid fa-shield-halved"></i> 2. Verified Email &amp; Password Security</h4>
-            <p>
-              Registration uses your original email address verified via a 6-digit
-              code sent over Google SMTP. Passwords require at least 8 characters,
-              and password changes in the Dashboard require confirming your current
-              password first.
-            </p>
+            <h4>2. Your account</h4>
+            <p>We confirm your email with a 6-digit code. Passwords are at least 8 characters and stored as secure hashes. Keep yours private.</p>
           </div>
-
           <div class="terms-summary-block">
-            <h4><i class="fa-solid fa-cloud-arrow-up"></i> 3. Streaming &amp; Personal Vault Uploads</h4>
-            <p>
-              Catalog streaming is for personal, non-commercial listening. You keep
-              ownership of private tracks you upload to your Personal Vault and
-              confirm you have the legal rights to upload them (up to 50 MB per file).
-            </p>
+            <h4>3. Listening &amp; uploads</h4>
+            <p>Streaming is for personal, non-commercial use. You own the tracks you upload to your private vault and confirm you have the rights to them (max 50 MB per file).</p>
           </div>
-
           <div class="terms-summary-block">
-            <h4><i class="fa-solid fa-scale-balanced"></i> 4. Acceptable Use &amp; Privacy</h4>
-            <p>
-              Do not scrape, bypass authentication, upload malware, or infringe
-              copyrights. Account metadata is stored securely in MongoDB and media
-              assets are hosted on Supabase Storage. Full disclaimers and liability
-              terms apply.
-            </p>
+            <h4>4. Fair use &amp; privacy</h4>
+            <p>No scraping, bypassing security, malware or copyright infringement. We store only what's needed to run Sohify and never sell your data.</p>
           </div>
-
-          <a
-            href="/Terms"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="terms-full-page-link"
-          >
-            <span>Open Full Terms &amp; Conditions Page</span>
-            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <a href="/Terms" target="_blank" rel="noopener" class="terms-full-page-link">
+            Read the full Terms <i class="fa-solid fa-arrow-up-right-from-square"></i>
           </a>
         </div>
 
         <div class="terms-modal-footer">
-          <button type="button" class="btn-terms-secondary" id="dismissTermsModalBtn">
-            Close
-          </button>
-          <button type="button" class="btn-terms-accept" id="acceptTermsModalBtn">
-            <i class="fa-solid fa-circle-check"></i> I Agree to Terms
-          </button>
+          <button type="button" class="btn-terms-secondary" id="dismissTermsModalBtn">Close</button>
+          <button type="button" class="btn-terms-accept" id="acceptTermsModalBtn">I agree</button>
         </div>
       </div>
     </div>
